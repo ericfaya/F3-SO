@@ -92,7 +92,7 @@ void sendSongListResponse(int socket) {
 }
 
 void sendPlayListResponse(int socket) {
-    char *header = "SONGS_RESPONSE";
+    char *header = "PLAYLISTS_RESPONSE";
     char data2[FRAME_SIZE - 3 - strlen(header)]; 
     char *songs = (char *)malloc(1024);
     

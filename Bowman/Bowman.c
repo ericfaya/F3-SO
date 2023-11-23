@@ -7,19 +7,15 @@ char *tokens[MAX_TOKENS];
 int sockfd_poole;
 
 void logoutDiscovery(){
-    
-    Frame *bowman_frame;
-    bowman_frame = (Frame *)malloc(sizeof(Frame));//cada cop que entra aqui,amplia una posicio el malloc el realloc
-    build_frame(bowman_frame, 0x06, "EXIT", tokens[0]);
+    char frame_buffer[FRAME_SIZE] = {0};
+    doThingsTrama(frame_buffer,0x06,"EXIT",tokens[0]);
 
     struct sockaddr_in server_addr;    //sockaddr_in: struct defineix l’estructura que permet configurar diversos paràmetres del socket com IP, port
     memset(&server_addr, 0, sizeof(server_addr));//Inicialitza,fica 0s a l'estructura
     server_addr.sin_family = AF_INET;//tipus de familia de socket es tracta
     server_addr.sin_port = htons(bowmaneta[0].portDiscovery);//(Host To Network Short) Converteix port a big endian
 
-    char frame_buffer[FRAME_SIZE] = {0};
-    pad_frame(bowman_frame, frame_buffer);
-    free(bowman_frame);
+  
    
     if (inet_pton(AF_INET, bowmaneta[0].ipDiscovery, &server_addr.sin_addr) < 0) { //Converteix representació en text de la ip a l’equivalent binari (IPv4)
         perror("Invalid address/ Address not supported");
@@ -42,24 +38,20 @@ void logoutDiscovery(){
 
     send(sockfd, frame_buffer, FRAME_SIZE, 0);
     close(sockfd);
-
 }
+
 void connectDiscovery(char *tokens[]){
     char *buffer;
-    
-    Frame *bowman_frame;
-    bowman_frame = (Frame *)malloc(sizeof(Frame));//cada cop que entra aqui,amplia una posicio el malloc el realloc
-    build_frame(bowman_frame, 0x01, "NEW_BOWMAN", bowmaneta[0].fullName);
 
+    char frame_buffer[FRAME_SIZE] = {0};
+    doThingsTrama(frame_buffer,0x01,"NEW_BOWMAN",bowmaneta[0].fullName);
+   
     struct sockaddr_in server_addr;    //sockaddr_in: struct defineix l’estructura que permet configurar diversos paràmetres del socket com IP, port
     memset(&server_addr, 0, sizeof(server_addr));//Inicialitza,fica 0s a l'estructura
     server_addr.sin_family = AF_INET;//tipus de familia de socket es tracta
     server_addr.sin_port = htons(bowmaneta[0].portDiscovery);//(Host To Network Short) Converteix port a big endian
 
-    char frame_buffer[FRAME_SIZE] = {0};
-    pad_frame(bowman_frame, frame_buffer);
-    free(bowman_frame);
-   
+    
     if (inet_pton(AF_INET, bowmaneta[0].ipDiscovery, &server_addr.sin_addr) < 0) { //Converteix representació en text de la ip a l’equivalent binari (IPv4)
         perror("Invalid address/ Address not supported");
         //fer free de memoria dinamica
@@ -98,12 +90,8 @@ void connectToPoole(char *tokens[]) {
     char *ipPoole = tokens[1];
     uint16_t portPoole = (uint16_t)strtoul(tokens[2],NULL,10);    //eL STRTOUL converteix la cadena en un valor numeric
     
-    Frame *bowman_frame;
-    bowman_frame = (Frame *)malloc(sizeof(Frame));//cada cop que entra aqui,amplia una posicio el malloc el realloc
-    build_frame(bowman_frame, 0x01, "NEW_BOWMAN", bowmaneta[0].fullName);
     char frame_buffer[FRAME_SIZE] = {0};
-    pad_frame(bowman_frame, frame_buffer);
-    free(bowman_frame);
+    doThingsTrama(frame_buffer,0x01,"NEW_BOWMAN",bowmaneta[0].fullName);
 
     struct sockaddr_in server_addr;    //sockaddr_in: struct defineix l’estructura que permet configurar diversos paràmetres del socket com IP, port
 
@@ -166,16 +154,14 @@ int connectBowman(char *tokens[MAX_TOKENS]){
       
     return 1; 
 }
+
 void logout(){
     logoutDiscovery(); //A tokens li envia el nom del servidor
     
-    Frame *bowman_frame;
-    bowman_frame = (Frame *)malloc(sizeof(Frame));//cada cop que entra aqui,amplia una posicio el malloc el realloc
-    build_frame(bowman_frame, 0x02, "EXIT", bowmaneta[0].fullName);
     char frame_buffer[FRAME_SIZE] = {0};
-    pad_frame(bowman_frame, frame_buffer);
+    doThingsTrama(frame_buffer,0x02,"EXIT",bowmaneta[0].fullName);
 
-    free(bowman_frame);
+
     send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
     
     char info[256];
@@ -199,14 +185,12 @@ void download(int *connectedOrNot){
     else
         printF("Cannot download, you are not connected to HAL 9000\n");
 }
+
 void listSongs(int *connectedOrNot){//TODO F2
     if(*connectedOrNot){
-        Frame *bowman_frame;
-        bowman_frame = (Frame *)malloc(sizeof(Frame));//cada cop que entra aqui,amplia una posicio el malloc el realloc
-        build_frame(bowman_frame, 0x02, "LIST_SONGS", " ");
         char frame_buffer[FRAME_SIZE] = {0};
-        pad_frame(bowman_frame, frame_buffer);
-        free(bowman_frame);
+        doThingsTrama(frame_buffer,0x02,"LIST_SONGS"," ");
+        
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
 
         Frame incoming_frame;
@@ -219,22 +203,17 @@ void listSongs(int *connectedOrNot){//TODO F2
         
         free(incoming_frame.header);
         free(incoming_frame.data);
-
     }
     else{
         printF("Cannot list, you are not connected to HAL 9000\n");
     } 
-
 }
+
 void listPlaylists(int *connectedOrNot){//TODO F2
      if(*connectedOrNot){
-        Frame *bowman_frame;
-        bowman_frame = (Frame *)malloc(sizeof(Frame));//cada cop que entra aqui,amplia una posicio el malloc el realloc
-        build_frame(bowman_frame, 0x02, "LIST_PLAYLISTS", " ");
         char frame_buffer[FRAME_SIZE] = {0};
-        pad_frame(bowman_frame, frame_buffer);
+        doThingsTrama(frame_buffer,0x06,"LIST_PLAYLISTS"," ");
 
-        free(bowman_frame);
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
 
         Frame incoming_frame;
@@ -252,12 +231,14 @@ void listPlaylists(int *connectedOrNot){//TODO F2
         printF("Cannot list, you are not connected to HAL 9000\n");
     }
 }
+
 void checkDownload(int *connectedOrNot){
     if(*connectedOrNot)
         printF("You have no ongoing or finished downloads\n");
     else
         printF("Cannot check, you are not connected to HAL 9000\n");
 }
+
 void clearDownload(int *connectedOrNot){
     if(*connectedOrNot)
         printF("Clear\n");
@@ -326,12 +307,10 @@ int controleCommands(char whichCommand[50],int *connectedOrNot) {
     return 1;
 }
 
-
 void kctrlc(){ 
     freeMemory(bowmaneta, numUsuaris);
     logout(); //SIGNAL CONTROL+C TODO: S'HAURA DE FER VARIABLE GLOBAL  crec EL FD SOCKET :int sockfd_poole 
 }
-
 
 int main(int argc, char *argv[]){
     char whichCommand[50];

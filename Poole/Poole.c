@@ -1,7 +1,5 @@
 #include "Poole.h"
 #include "config.h"
-#include "Frame.h"
-
 
 void listSongsInDirectory(char *directory, char *result, int includeDirs) {
     DIR *directori;
@@ -63,7 +61,6 @@ void listPlayLists(char *directory, char *result) {
     }
 }
 
-
 void sendSongListResponse(int socket) {
     char data2[FRAME_SIZE - 3 - strlen("SONGS_RESPONSE")]; // -3 por 'type' y 'header_length'.
     char *songs = (char *)malloc(1024);
@@ -71,14 +68,9 @@ void sendSongListResponse(int socket) {
     listAllSongs("Files/floyd", songs);
 
     snprintf(data2, sizeof(data2), "%s", songs);
-    Frame *bowman_frame;
-    bowman_frame = (Frame *)malloc(sizeof(Frame));
-
-    build_frame(bowman_frame, 0x02, "SONGS_RESPONSE", data2);
     char frame_buffer[FRAME_SIZE] = {0};
-    pad_frame(bowman_frame, frame_buffer);
-    
-    free(bowman_frame);
+    doThingsTrama(frame_buffer,0x02,"SONGS_RESPONSE",data2);
+
     send(socket, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
 }
 
@@ -87,18 +79,14 @@ void sendPlayListResponse(int socket) {
     char *songs = (char *)malloc(1024);
     
     listPlayLists("Files/floyd", songs);
+    
     snprintf(data2, sizeof(data2), "%s", songs);
-    Frame *bowman_frame;
-    bowman_frame = (Frame *)malloc(sizeof(Frame));
-    build_frame(bowman_frame, 0x02, "PLAYLISTS_RESPONSE", data2);
+    
     char frame_buffer[FRAME_SIZE] = {0};
-    pad_frame(bowman_frame, frame_buffer);
-  
-    free(bowman_frame);
+    doThingsTrama(frame_buffer,0x02,"PLAYLISTS_RESPONSE",data2);
+
     send(socket, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
 }
-
-
 
 int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_frame) {
      if (errorSocketOrNot < 0) {
@@ -133,7 +121,6 @@ int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_fr
 
 void enviarAcknowledge(int newsock,int errorSocketOrNot) {
     char *header;
-    Frame *acknowledge_frame;
     if(errorSocketOrNot==-1 ){
         header = "[CON_KO]";
     }
@@ -141,18 +128,11 @@ void enviarAcknowledge(int newsock,int errorSocketOrNot) {
         header = "CON_OK";
     }
     
-    acknowledge_frame = (Frame *)malloc(sizeof(Frame));//cada cop que entradara aqui,amplia una posicio el malloc el realloc
-    errorSocketOrNot=build_frame(acknowledge_frame, 0x01, header, " ");
     char frame_buffer[FRAME_SIZE] = {0};
-    pad_frame(acknowledge_frame, frame_buffer);
+    doThingsTrama(frame_buffer,0x01,header," ");
         
     send(newsock, frame_buffer, 256, 0);//Bowman send poole
-
-    free(acknowledge_frame->header);
-    free(acknowledge_frame->data);
-    free(acknowledge_frame);
 }
-
 
 void connectToBowman(Poole *poolete){
     char *buffer;
@@ -246,12 +226,9 @@ void connectToBowman(Poole *poolete){
         }
     }
     close(sockfd_poole_server);
-    
-
 }
     
 void freeAndClose(Poole *poolete,int numUsuaris){ 
-
     int i;
     for(i=0; i<numUsuaris; i++){
         free(poolete[i].fullName);
@@ -261,8 +238,6 @@ void freeAndClose(Poole *poolete,int numUsuaris){
     }
     free(poolete);
 }
-
-
 
 int main(int argc, char *argv[]){
     Poole *poolete;
@@ -285,17 +260,15 @@ int main(int argc, char *argv[]){
     char data2[FRAME_SIZE - 3 - strlen("NEW_POOLE")]; // -3 por 'type' y 'header_length'.
     snprintf(data2, sizeof(data2), "%s&%s&%u", userName2, ipPoole, portPoole);
 
-    Frame *poole_frame;
-    poole_frame = (Frame *)malloc(sizeof(Frame));//cada cop que entradara aqui,amplia una posicio el malloc el realloc
-    build_frame(poole_frame, 0x01, "NEW_POOLE", data2);
+
+    char frame_buffer[FRAME_SIZE] = {0};
+    doThingsTrama(frame_buffer,0x01,"NEW_POOLE",data2);
+    
 
     struct sockaddr_in server_addr;    //sockaddr_in: struct defineix l’estructura que permet configurar diversos paràmetres del socket com IP, port
     memset(&server_addr, 0, sizeof(server_addr));//Inicialitza,fica 0s a l'estructura
     server_addr.sin_family = AF_INET;//tipus de familia de socket es tracta
     server_addr.sin_port = htons(poolete[0].portDiscovery);//(Host To Network Short) Converteix port a big endian
-
-    char frame_buffer[FRAME_SIZE] = {0};
-    pad_frame(poole_frame, frame_buffer);
 
     if (inet_pton(AF_INET, poolete[0].ipDiscovery, &server_addr.sin_addr) < 0) { //Converteix representradaació en text de la ip a l’equivalentrada binari (IPv4)
         perror("Invalid address/ Address not supported");
@@ -320,13 +293,9 @@ int main(int argc, char *argv[]){
     char info[256];
     Frame frameAcknoledge;
 
-
     read(sockfd, info, 256);
     printaAcknowledge(info,&frameAcknoledge);
-
-    free(poole_frame->header);
-    free(poole_frame->data);
-    free(poole_frame);
+    
     close(sockfd);
 
     connectToBowman(poolete);

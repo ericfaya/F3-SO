@@ -13,8 +13,6 @@ void printaAcknowledge(char buffer[256], Frame *frame) { //Nomes es per debugar
     frame->data = (char *)malloc(data_length + 1);  // +1 pel \0
     memcpy(frame->data, &buffer[3 + frame->header_length], data_length);
     frame->data[data_length] = '\0'; // Null-terminar el data
-    
-   
 }
 
 int build_frame(Frame *frame, uint8_t type,  char *header,  char *data) {
@@ -120,4 +118,16 @@ void splitFrame(Frame *frame,char *tokens[]) {
         num_tokens++;
         token = strtok(NULL, delimiter);
     }
+}
+
+void doThingsTrama(char frame_buffer[], uint8_t type,  char *header,  char *data) {
+    Frame *poole_frame;
+    poole_frame = (Frame *)malloc(sizeof(Frame));//cada cop que entradara aqui,amplia una posicio el malloc el realloc
+    build_frame(poole_frame, type, header, data);
+
+    
+    pad_frame(poole_frame, frame_buffer);
+    free(poole_frame->header);
+    free(poole_frame->data);
+    free(poole_frame);
 }

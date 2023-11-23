@@ -4,15 +4,13 @@
 
 void enviarAcknowledge(int newsock,int errorSocketOrNot,int bowmanOrPoole,PooleList *pooleList) {
     char *header;
-    Frame *acknowledge_frame;
     if(errorSocketOrNot==-1 ){
         header = "[CON_KO]";
     }
     else {
         header = "CON_OK";
     }
-  
-    acknowledge_frame = (Frame *)malloc(sizeof(Frame));//cada cop que entra aqui,amplia una posicio el malloc el realloc
+    
     char data2[FRAME_SIZE - 3 - strlen(header)]; // -3 por 'type' y 'header_length'.
     if(bowmanOrPoole == 0){ //Es 0(bowman) i cal fer una trama distinta
         PooleNode* pooleListMneysBalancejador=searchPooleListLessBowmans(pooleList);//balancejadorDeCarrega
@@ -22,15 +20,10 @@ void enviarAcknowledge(int newsock,int errorSocketOrNot,int bowmanOrPoole,PooleL
     else{ //Es 1 (poole)
         snprintf(data2, sizeof(data2), " ");
     }
-
-    errorSocketOrNot=build_frame(acknowledge_frame, 0x01, header, data2);
     char frame_buffer[FRAME_SIZE] = {0};
-    pad_frame(acknowledge_frame, frame_buffer);
-    
+    doThingsTrama(frame_buffer,0x01,header,data2);
+
     write(newsock, frame_buffer, 256);
-    free(acknowledge_frame->header);
-    free(acknowledge_frame->data);
-    free(acknowledge_frame);
 }
 
 void process_frame(Frame *frame, PooleList *list) {

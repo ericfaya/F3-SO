@@ -14,9 +14,6 @@ void listSongsInDirectory(char *directory, char *result, int includeDirs) {
             if (entrada->d_name[0] == '.') {
                 continue;
             }
-
-
-
             snprintf(path, sizeof(path), "%s/%s", directory, entrada->d_name);
             
             struct stat path_stat;
@@ -67,48 +64,36 @@ void listPlayLists(char *directory, char *result) {
 }
 
 
-
 void sendSongListResponse(int socket) {
-    char *header = "SONGS_RESPONSE";
-    char data2[FRAME_SIZE - 3 - strlen(header)]; // -3 por 'type' y 'header_length'.
+    char data2[FRAME_SIZE - 3 - strlen("SONGS_RESPONSE")]; // -3 por 'type' y 'header_length'.
     char *songs = (char *)malloc(1024);
-    
 
     listAllSongs("Files/floyd", songs);
 
     snprintf(data2, sizeof(data2), "%s", songs);
-    
     Frame *bowman_frame;
     bowman_frame = (Frame *)malloc(sizeof(Frame));
 
-
-    build_frame(bowman_frame, 0x02, header, data2);
+    build_frame(bowman_frame, 0x02, "SONGS_RESPONSE", data2);
     char frame_buffer[FRAME_SIZE] = {0};
     pad_frame(bowman_frame, frame_buffer);
-
-    print_frame(bowman_frame);
+    
     free(bowman_frame);
     send(socket, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
 }
 
 void sendPlayListResponse(int socket) {
-    char *header = "PLAYLISTS_RESPONSE";
-    char data2[FRAME_SIZE - 3 - strlen(header)]; 
+    char data2[FRAME_SIZE - 3 - strlen("PLAYLISTS_RESPONSE")]; 
     char *songs = (char *)malloc(1024);
     
     listPlayLists("Files/floyd", songs);
-
     snprintf(data2, sizeof(data2), "%s", songs);
-    
     Frame *bowman_frame;
     bowman_frame = (Frame *)malloc(sizeof(Frame));
-
-
-    build_frame(bowman_frame, 0x02, header, data2);
+    build_frame(bowman_frame, 0x02, "PLAYLISTS_RESPONSE", data2);
     char frame_buffer[FRAME_SIZE] = {0};
     pad_frame(bowman_frame, frame_buffer);
-
-    print_frame(bowman_frame);
+  
     free(bowman_frame);
     send(socket, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
 }
@@ -119,7 +104,6 @@ int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_fr
      if (errorSocketOrNot < 0) {
         perror("Error");//aqui s'hauria dafegir lo del KO
         close(*newsock);
-        
     }
    
     if (strcmp(incoming_frame->header, "NEW_BOWMAN") == 0) { 
@@ -138,14 +122,9 @@ int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_fr
 
     else if (strcmp(incoming_frame->header, "EXIT") == 0)
     {
-        enviarAcknowledge(*newsock,errorSocketOrNot);
-        //close(*newsock);
-       
+        enviarAcknowledge(*newsock,errorSocketOrNot);       
         return -1;
-       
     }
-    
-
 
     free(incoming_frame->header);
     free(incoming_frame->data);
@@ -163,9 +142,7 @@ void enviarAcknowledge(int newsock,int errorSocketOrNot) {
     }
     
     acknowledge_frame = (Frame *)malloc(sizeof(Frame));//cada cop que entradara aqui,amplia una posicio el malloc el realloc
-    char data2[FRAME_SIZE - 3 - strlen(header)]; // -3 por 'type' y 'header_length'.
-    snprintf(data2, sizeof(data2), " ");
-    errorSocketOrNot=build_frame(acknowledge_frame, 0x01, header, data2);
+    errorSocketOrNot=build_frame(acknowledge_frame, 0x01, header, " ");
     char frame_buffer[FRAME_SIZE] = {0};
     pad_frame(acknowledge_frame, frame_buffer);
         
@@ -260,11 +237,10 @@ void connectToBowman(Poole *poolete){
                 }
 
                 break;                
-                if (errorSocketOrNot <= 0) {//    if(errorSocketOrNot==-1 ){
+                if (errorSocketOrNot <= 0) {
                     close(sd);
                     FD_CLR(sd, &master_set);
                     clientrada_sockets[i] = 0;
-                    //break;
                 }
             }
         }
@@ -274,7 +250,7 @@ void connectToBowman(Poole *poolete){
 
 }
     
-void freeAndClose(/*Frame *poole_frame,*/Poole *poolete,int numUsuaris){ 
+void freeAndClose(Poole *poolete,int numUsuaris){ 
 
     int i;
     for(i=0; i<numUsuaris; i++){
@@ -301,22 +277,19 @@ int main(int argc, char *argv[]){
     if (poolete == NULL){
         return -2;
     }
-
-        
+  
     char *userName2 = poolete[0].fullName;
     char *ipPoole = poolete[0].ipPoole;
     uint16_t portPoole = poolete[0].portPoole;
 
-    char *header = "NEW_POOLE";
-    char data2[FRAME_SIZE - 3 - strlen(header)]; // -3 por 'type' y 'header_length'.
+    char data2[FRAME_SIZE - 3 - strlen("NEW_POOLE")]; // -3 por 'type' y 'header_length'.
     snprintf(data2, sizeof(data2), "%s&%s&%u", userName2, ipPoole, portPoole);
 
     Frame *poole_frame;
     poole_frame = (Frame *)malloc(sizeof(Frame));//cada cop que entradara aqui,amplia una posicio el malloc el realloc
-    build_frame(poole_frame, 0x01, header, data2);
+    build_frame(poole_frame, 0x01, "NEW_POOLE", data2);
 
-    //sockaddr_in: struct defineix l’estructura que permet configurar diversos paràmetres del socket com IP, port
-    struct sockaddr_in server_addr;
+    struct sockaddr_in server_addr;    //sockaddr_in: struct defineix l’estructura que permet configurar diversos paràmetres del socket com IP, port
     memset(&server_addr, 0, sizeof(server_addr));//Inicialitza,fica 0s a l'estructura
     server_addr.sin_family = AF_INET;//tipus de familia de socket es tracta
     server_addr.sin_port = htons(poolete[0].portDiscovery);//(Host To Network Short) Converteix port a big endian
@@ -330,7 +303,6 @@ int main(int argc, char *argv[]){
         //fer free de memoria dinamica
     }
     int sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    //intrada [] array.add(sockfd);
     if (sockfd < 0) {
         perror("Cannot create socket");
         exit(EXIT_FAILURE);
@@ -345,7 +317,6 @@ int main(int argc, char *argv[]){
     }
 
     send(sockfd, frame_buffer, FRAME_SIZE, 0);
-    //char *tokens[MAX_TOKENS];
     char info[256];
     Frame frameAcknoledge;
 
@@ -359,8 +330,6 @@ int main(int argc, char *argv[]){
     close(sockfd);
 
     connectToBowman(poolete);
-
-
 
     freeAndClose(/*poole_frame,*/poolete,numUsuaris);
     return 0;  

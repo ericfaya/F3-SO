@@ -7,17 +7,10 @@ char *tokens[MAX_TOKENS];
 int sockfd_poole;
 
 void logoutDiscovery(){
-   // char *buffer;
-    //char *userName2 = bowmaneta[0].fullName;
-   
-    
-    char *header = "EXIT";
-    char data2[FRAME_SIZE - 3 - strlen(header)]; // -3 por 'type' y 'header_length'.
-    snprintf(data2, sizeof(data2), "%s", tokens[0]);
     
     Frame *bowman_frame;
     bowman_frame = (Frame *)malloc(sizeof(Frame));//cada cop que entra aqui,amplia una posicio el malloc el realloc
-    build_frame(bowman_frame, 0x06, header, data2);
+    build_frame(bowman_frame, 0x06, "EXIT", tokens[0]);
 
     struct sockaddr_in server_addr;    //sockaddr_in: struct defineix l’estructura que permet configurar diversos paràmetres del socket com IP, port
     memset(&server_addr, 0, sizeof(server_addr));//Inicialitza,fica 0s a l'estructura
@@ -53,16 +46,10 @@ void logoutDiscovery(){
 }
 void connectDiscovery(char *tokens[]){
     char *buffer;
-    //char *userName2 = bowmaneta[0].fullName;
-   
-    
-    char *header = "NEW_BOWMAN";
-    char data2[FRAME_SIZE - 3 - strlen(header)]; // -3 por 'type' y 'header_length'.
-    snprintf(data2, sizeof(data2), "%s", bowmaneta[0].fullName);
     
     Frame *bowman_frame;
     bowman_frame = (Frame *)malloc(sizeof(Frame));//cada cop que entra aqui,amplia una posicio el malloc el realloc
-    build_frame(bowman_frame, 0x01, header, data2);
+    build_frame(bowman_frame, 0x01, "NEW_BOWMAN", bowmaneta[0].fullName);
 
     struct sockaddr_in server_addr;    //sockaddr_in: struct defineix l’estructura que permet configurar diversos paràmetres del socket com IP, port
     memset(&server_addr, 0, sizeof(server_addr));//Inicialitza,fica 0s a l'estructura
@@ -108,27 +95,22 @@ void connectDiscovery(char *tokens[]){
 }
 
 void connectToPoole(char *tokens[]) {
-    //char *userName2 = bowmaneta[0].fullName; //8070 ->8074 8110->8114
     char *ipPoole = tokens[1];
     uint16_t portPoole = (uint16_t)strtoul(tokens[2],NULL,10);    //eL STRTOUL converteix la cadena en un valor numeric
-    char *header = "NEW_BOWMAN";
-    char data2[FRAME_SIZE - 3 - strlen(header)]; // -3 por 'type' y 'header_length'.
-    snprintf(data2, sizeof(data2), "%s", bowmaneta[0].fullName);
     
     Frame *bowman_frame;
     bowman_frame = (Frame *)malloc(sizeof(Frame));//cada cop que entra aqui,amplia una posicio el malloc el realloc
-    build_frame(bowman_frame, 0x01, header, data2);
+    build_frame(bowman_frame, 0x01, "NEW_BOWMAN", bowmaneta[0].fullName);
+    char frame_buffer[FRAME_SIZE] = {0};
+    pad_frame(bowman_frame, frame_buffer);
+    free(bowman_frame);
 
     struct sockaddr_in server_addr;    //sockaddr_in: struct defineix l’estructura que permet configurar diversos paràmetres del socket com IP, port
 
     memset(&server_addr, 0, sizeof(server_addr));//Inicialitza,fica 0s a l'estructura
     server_addr.sin_family = AF_INET;//tipus de familia de socket es tracta
-    server_addr.sin_port = htons(portPoole);//(Host To Network Short) Converteix port a big endian
-
-    char frame_buffer[FRAME_SIZE] = {0};
-    pad_frame(bowman_frame, frame_buffer);
-    free(bowman_frame);
-
+    server_addr.sin_port = htons(portPoole);//(Host To Network Short) Converteix port a big endiaN
+   
     if (inet_pton(AF_INET, ipPoole, &server_addr.sin_addr) < 0) { //Converteix representació en text de la ip a l’equivalent binari (IPv4)
         perror("Invalid address/ Address not supported");
         //fer free de memoria dinamica
@@ -153,8 +135,6 @@ void connectToPoole(char *tokens[]) {
     read(sockfd_poole, info, 256);//bowman recibe from poole
     Frame frameAcknoledge;
     printaAcknowledge(info,&frameAcknoledge);
-    
-    //close(*sockfd_poole);//Crec que no es tindra que fer perque sino es tanca la comunicacio
 
 }
 
@@ -180,24 +160,18 @@ void printInfo(Bowman* bowmaneta){
 }
 
 int connectBowman(char *tokens[MAX_TOKENS]){ 
-    
     connectDiscovery(tokens);
     printF(" connected to HAL 9000 system, welcome music lover!\n");
     connectToPoole(tokens);
       
     return 1; 
 }
-void logout(){//TODO
-   // char *tokens[MAX_TOKENS];
+void logout(){
     logoutDiscovery(); //A tokens li envia el nom del servidor
-
-    char *header = "EXIT";
-    char data2[FRAME_SIZE - 3 - strlen(header)]; // -3 por 'type' y 'header_length'.
-    snprintf(data2, sizeof(data2), "%s", bowmaneta[0].fullName);
     
     Frame *bowman_frame;
     bowman_frame = (Frame *)malloc(sizeof(Frame));//cada cop que entra aqui,amplia una posicio el malloc el realloc
-    build_frame(bowman_frame, 0x02, header, data2);
+    build_frame(bowman_frame, 0x02, "EXIT", bowmaneta[0].fullName);
     char frame_buffer[FRAME_SIZE] = {0};
     pad_frame(bowman_frame, frame_buffer);
 
@@ -208,17 +182,14 @@ void logout(){//TODO
     int errorSocketOrNot=read(sockfd_poole, info, 256);//bowman recibe from poole
     Frame frameAcknoledge;
     printaAcknowledge(info,&frameAcknoledge);
+   // char *header;
+    if(errorSocketOrNot!=-1 ){
 
-    if(errorSocketOrNot==-1 ){
-        header = "[CON_KO]";
-    }
-    else{
         if(strcmp(frameAcknoledge.header,"[CON_OK]")){
             close(sockfd_poole);//Crec que no es tindra que fer perque sino es tanca la comunicacio
             printF("Thanks for using HAL 9000, see you soon, music lover!\n");
             exit(0);
-        }
-        //ELSE //  header = "CON_KO";
+        }//ELSE //  header = "CON_KO";
     }   
 }
 
@@ -230,13 +201,9 @@ void download(int *connectedOrNot){
 }
 void listSongs(int *connectedOrNot){//TODO F2
     if(*connectedOrNot){
-        char *header = "LIST_SONGS";
-        char data2[FRAME_SIZE - 3 - strlen(header)]; // -3 por 'type' y 'header_length'.
-        snprintf(data2, sizeof(data2), "songs" );
-        
         Frame *bowman_frame;
         bowman_frame = (Frame *)malloc(sizeof(Frame));//cada cop que entra aqui,amplia una posicio el malloc el realloc
-        build_frame(bowman_frame, 0x02, header, data2);
+        build_frame(bowman_frame, 0x02, "LIST_SONGS", " ");
         char frame_buffer[FRAME_SIZE] = {0};
         pad_frame(bowman_frame, frame_buffer);
         free(bowman_frame);
@@ -245,9 +212,9 @@ void listSongs(int *connectedOrNot){//TODO F2
         Frame incoming_frame;
         int errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
         if (errorSocketOrNot >= 0) {
-            print_frame(&incoming_frame); 
+     
         } else {
-            printf("Error receiving frame from server.\n");
+            perror("Error\n");
         }
         
         free(incoming_frame.header);
@@ -261,13 +228,9 @@ void listSongs(int *connectedOrNot){//TODO F2
 }
 void listPlaylists(int *connectedOrNot){//TODO F2
      if(*connectedOrNot){
-        char *header = "LIST_PLAYLISTS";
-        char data2[FRAME_SIZE - 3 - strlen(header)]; // -3 por 'type' y 'header_length'.
-        snprintf(data2, sizeof(data2), "playlist" );
-        
         Frame *bowman_frame;
         bowman_frame = (Frame *)malloc(sizeof(Frame));//cada cop que entra aqui,amplia una posicio el malloc el realloc
-        build_frame(bowman_frame, 0x02, header, data2);
+        build_frame(bowman_frame, 0x02, "LIST_PLAYLISTS", " ");
         char frame_buffer[FRAME_SIZE] = {0};
         pad_frame(bowman_frame, frame_buffer);
 
@@ -277,9 +240,9 @@ void listPlaylists(int *connectedOrNot){//TODO F2
         Frame incoming_frame;
         int errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
         if (errorSocketOrNot >= 0) {
-            print_frame(&incoming_frame);
+            
         } else {
-            printf("Error receiving frame from server.\n");
+            perror("Error\n");
         }
         
         free(incoming_frame.header);
@@ -290,31 +253,29 @@ void listPlaylists(int *connectedOrNot){//TODO F2
     }
 }
 void checkDownload(int *connectedOrNot){
-     if(*connectedOrNot)
+    if(*connectedOrNot)
         printF("You have no ongoing or finished downloads\n");
     else
         printF("Cannot check, you are not connected to HAL 9000\n");
 }
 void clearDownload(int *connectedOrNot){
-     if(*connectedOrNot)
+    if(*connectedOrNot)
         printF("Clear\n");
     else
         printF("Cannot clear, you are not connected to HAL 9000\n");
 }
 
 int controleCommands(char whichCommand[50],int *connectedOrNot) {
-  
     int flag=0;
     char *whichCommand1,*whichCommand2;
     const char delimiter = ' ';
     char *tokens[MAX_TOKENS];
     whichCommand1=strtok(whichCommand, &delimiter);
-   // int *flagConnected=0;
+
     if(whichCommand1 != NULL){
         if((strcasecmp("CONNECT",whichCommand1) == 0) && *connectedOrNot == 0){//Segona condicio per que no es connecti mes d'un cop
             whichCommand2=strtok(NULL, &delimiter);//Si li fiquem NULL començara la segona busqueda per on es va quedar cuan es va cridar per primer cop strtok
             if(whichCommand2 == NULL){
-              //  flagConnected=1;
                 *connectedOrNot=connectBowman(tokens);
             }
             else{
@@ -344,8 +305,7 @@ int controleCommands(char whichCommand[50],int *connectedOrNot) {
 
         if(strcasecmp(whichCommand1,"DOWNLOAD") == 0){ //TODO F3
             download(connectedOrNot);
-            flag=1;
-        
+            flag=1; 
         }
 
         if(strcasecmp("CHECK",whichCommand1) == 0){//TODO F3

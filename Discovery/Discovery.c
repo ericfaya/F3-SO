@@ -18,8 +18,6 @@ void enviarAcknowledge(int newsock,int errorSocketOrNot,int bowmanOrPoole,PooleL
         PooleNode* pooleListMneysBalancejador=searchPooleListLessBowmans(pooleList);//balancejadorDeCarrega
         snprintf(data2, sizeof(data2), "%s&%s&%u", pooleListMneysBalancejador->info.userName,pooleListMneysBalancejador->info.ip,pooleListMneysBalancejador->info.port);
         pooleList->head->info.contador_bowmans++;
-
-        //free(pooleListMneysBalancejador);
     }
     else{ //Es 1 (poole)
         snprintf(data2, sizeof(data2), " ");
@@ -28,7 +26,6 @@ void enviarAcknowledge(int newsock,int errorSocketOrNot,int bowmanOrPoole,PooleL
     errorSocketOrNot=build_frame(acknowledge_frame, 0x01, header, data2);
     char frame_buffer[FRAME_SIZE] = {0};
     pad_frame(acknowledge_frame, frame_buffer);
-    
     
     write(newsock, frame_buffer, 256);
     free(acknowledge_frame->header);
@@ -99,7 +96,6 @@ int main(int argc, char *argv[]) {
         asprintf(&buffer,"Usage: %s <Poole port> <Bowman port>\n", argv[0]);  
         write(STDOUT_FILENO, buffer, strlen(buffer));   
         free(buffer);
-        //fprintf(stderr, "Usage: %s <Poole port> <Bowman port>\n", argv[0]); Nose si es pto utilitzar
         exit(EXIT_FAILURE);
     }
     discovery = readTextFile(argv[1], &numUsuaris);
@@ -111,13 +107,11 @@ int main(int argc, char *argv[]) {
 
     if (poole_port < 1 || bowman_port < 1) {
         write(STDOUT_FILENO, "Error: Invalid port number(s)\n", sizeof("Error: Invalid port number(s)\n"));   
-        //fprintf(stderr, "Error: Invalid port number(s)\n");
         exit(EXIT_FAILURE);
     }
 
     int sockfd_poole = socket(AF_INET, SOCK_STREAM, 0);// Crear els sockets para Poole i Bowman
     int sockfd_bowman = socket(AF_INET, SOCK_STREAM, 0);
-    //master_set = makeThingsSocket(sockfd_poole,sockfd_bowman,poole_port, poole_port);
     if (sockfd_poole < 0 || sockfd_bowman < 0) {
         perror("Error creating sockets");
         exit(EXIT_FAILURE);
@@ -150,7 +144,6 @@ int main(int argc, char *argv[]) {
     FD_ZERO(&master_set);
     FD_SET(sockfd_poole, &master_set);
     FD_SET(sockfd_bowman, &master_set);
-    // Configurar fd_set para select
 
     int max_sd = sockfd_poole > sockfd_bowman ? sockfd_poole : sockfd_bowman;
     PooleList pooleList;

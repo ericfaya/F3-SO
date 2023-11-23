@@ -179,12 +179,58 @@ void logout(){
     }   
 }
 
+void *downloadSongs  (void *arg){
+    
+    char *data = (char *)arg;
+    int contador=0;
+    printf("data: %s",data);
+    while(contador<10){//50 segfundos
+        int multipli=5*contador;
+        printf("\nHan pàsado %d segundpos \n",multipli);
+        sleep(5);
+        contador++;
+    }     
+    pthread_exit(NULL); // Terminar el hilo
+
+    //return (void *) arg;
+}
+
 void download(int *connectedOrNot){
-    if(*connectedOrNot==1)
-        printF("Downoalding starting:\n");
+    printF("Download started!\n");
+    if(*connectedOrNot==1){
+        char frame_buffer[FRAME_SIZE] = {0};
+        doThingsTrama(frame_buffer,0x03,"DOWNLOAD_SONG","song1"); //Hardcodejem la canso de moment
+        
+        send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
+
+        
+        pthread_t t1;
+        //void *res;
+        int s;
+        s = pthread_create (&t1, NULL, downloadSongs, NULL); //TODO DESCARREGAR CANSONS
+        if (s != 0){
+            printf("pthread_create\n");
+            exit (EXIT_FAILURE);
+        } 
+       /* s = pthread_detach(t1);
+        if (s != 0) {
+            printf("pthread_detach\n");
+            exit(EXIT_FAILURE);
+        }*/
+        /*s = pthread_join (t1, &res);
+        if (s != 0){
+            printf("pthread_join\n");
+            exit (EXIT_FAILURE);
+        }*/
+        /*} else {
+            perror("Error\n");
+        }*/
+    }
     else
         printF("Cannot download, you are not connected to HAL 9000\n");
 }
+
+
 
 void listSongs(int *connectedOrNot){//TODO F2
     if(*connectedOrNot){
@@ -194,9 +240,11 @@ void listSongs(int *connectedOrNot){//TODO F2
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
 
         Frame incoming_frame;
+        
         int errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
+        
         if (errorSocketOrNot >= 0) {
-     
+            //TODO mostrar les cansons
         } else {
             perror("Error\n");
         }
@@ -233,10 +281,12 @@ void listPlaylists(int *connectedOrNot){//TODO F2
 }
 
 void checkDownload(int *connectedOrNot){
-    if(*connectedOrNot)
-        printF("You have no ongoing or finished downloads\n");
-    else
+    if(*connectedOrNot){
+
+    }
+    else{
         printF("Cannot check, you are not connected to HAL 9000\n");
+    }
 }
 
 void clearDownload(int *connectedOrNot){

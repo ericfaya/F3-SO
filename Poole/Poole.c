@@ -88,6 +88,20 @@ void sendPlayListResponse(int socket) {
     send(socket, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
 }
 
+void *downloadSongs  (void *arg){
+    char *data = (char *)arg;
+    int contador=0;
+    printf("data: %s",data);
+    while(contador<10){//50 segfundos
+        int multipli=5*contador;
+        printf("\nHan pàsado %d segundpos \n",multipli);
+        sleep(5);
+        contador++;
+    }     
+    return (void *) arg;
+}
+
+
 int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_frame) {
      if (errorSocketOrNot < 0) {
         perror("Error");//aqui s'hauria dafegir lo del KO
@@ -106,6 +120,23 @@ int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_fr
     else if (strcmp(incoming_frame->header, "LIST_PLAYLISTS") == 0)
     {
         sendPlayListResponse(*newsock);
+    }
+
+    else if (strcmp(incoming_frame->header, "DOWNLOAD_SONG") == 0)
+    {
+       pthread_t t1;
+        void *res;
+        int s;
+        s = pthread_create (&t1, NULL, downloadSongs, incoming_frame->data); //TODO ENVIAR MD6SUM
+        if (s != 0){
+            printf("pthread_create\n");
+            exit (EXIT_FAILURE);
+        } 
+        s = pthread_join (t1, &res);
+        if (s != 0){
+            printf("pthread_join\n");
+            exit (EXIT_FAILURE);
+        }
     }
 
     else if (strcmp(incoming_frame->header, "EXIT") == 0)

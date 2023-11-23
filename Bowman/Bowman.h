@@ -12,6 +12,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <time.h>
 #include <ctype.h>
 #include <strings.h> 

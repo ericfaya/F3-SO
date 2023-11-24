@@ -21,7 +21,7 @@ void enviarAcknowledge(int newsock,int errorSocketOrNot,int bowmanOrPoole,PooleL
         snprintf(data2, sizeof(data2), " ");
     }
     char frame_buffer[FRAME_SIZE] = {0};
-    doThingsTrama(frame_buffer,0x01,header,data2);
+    fillFrame(frame_buffer,0x01,header,data2);
 
     write(newsock, frame_buffer, 256);
 }

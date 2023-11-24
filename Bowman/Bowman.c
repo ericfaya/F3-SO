@@ -8,7 +8,7 @@ int sockfd_poole;
 
 void logoutDiscovery(){
     char frame_buffer[FRAME_SIZE] = {0};
-    doThingsTrama(frame_buffer,0x06,"EXIT",tokens[0]);
+    fillFrame(frame_buffer,0x06,"EXIT",tokens[0]);
 
     struct sockaddr_in server_addr;    //sockaddr_in: struct defineix l’estructura que permet configurar diversos paràmetres del socket com IP, port
     memset(&server_addr, 0, sizeof(server_addr));//Inicialitza,fica 0s a l'estructura
@@ -44,7 +44,7 @@ void connectDiscovery(char *tokens[]){
     char *buffer;
 
     char frame_buffer[FRAME_SIZE] = {0};
-    doThingsTrama(frame_buffer,0x01,"NEW_BOWMAN",bowmaneta[0].fullName);
+    fillFrame(frame_buffer,0x01,"NEW_BOWMAN",bowmaneta[0].fullName);
    
     struct sockaddr_in server_addr;    //sockaddr_in: struct defineix l’estructura que permet configurar diversos paràmetres del socket com IP, port
     memset(&server_addr, 0, sizeof(server_addr));//Inicialitza,fica 0s a l'estructura
@@ -91,7 +91,7 @@ void connectToPoole(char *tokens[]) {
     uint16_t portPoole = (uint16_t)strtoul(tokens[2],NULL,10);    //eL STRTOUL converteix la cadena en un valor numeric
     
     char frame_buffer[FRAME_SIZE] = {0};
-    doThingsTrama(frame_buffer,0x01,"NEW_BOWMAN",bowmaneta[0].fullName);
+    fillFrame(frame_buffer,0x01,"NEW_BOWMAN",bowmaneta[0].fullName);
 
     struct sockaddr_in server_addr;    //sockaddr_in: struct defineix l’estructura que permet configurar diversos paràmetres del socket com IP, port
 
@@ -159,7 +159,7 @@ void logout(){
     logoutDiscovery(); //A tokens li envia el nom del servidor
     
     char frame_buffer[FRAME_SIZE] = {0};
-    doThingsTrama(frame_buffer,0x02,"EXIT",bowmaneta[0].fullName);
+    fillFrame(frame_buffer,0x02,"EXIT",bowmaneta[0].fullName);
 
 
     send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
@@ -186,24 +186,36 @@ void *downloadSongs  (void *arg){
     printf("data: %s",data);
     while(contador<10){//50 segfundos
         int multipli=5*contador;
-        printf("\nHan pàsado %d segundpos \n",multipli);
+        printf("\nHan pasado %d segundpos \n",multipli);
         sleep(5);
         contador++;
     }     
     pthread_exit(NULL); // Terminar el hilo
 
-    //return (void *) arg;
+    return (void *) arg;
 }
 
-void download(int *connectedOrNot){
+void download(int *connectedOrNot, char *commandInput){
     printF("Download started!\n");
     if(*connectedOrNot==1){
         char frame_buffer[FRAME_SIZE] = {0};
-        doThingsTrama(frame_buffer,0x03,"DOWNLOAD_SONG","song1"); //Hardcodejem la canso de moment
-        
-        send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
+        char *command = malloc(strlen(commandInput) + 1);
 
-        
+        strcpy(command, commandInput);
+        char *song_name = strtok(NULL, "");
+
+        if (song_name != NULL) {
+            fillFrame(frame_buffer, 0x03, "DOWNLOAD_SONG", song_name); 
+        } else {
+            printF("No song name provided\n");
+            free(command); 
+            return;
+        }
+        send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);
+        free(command);
+       
+
+        /*    
         pthread_t t1;
         //void *res;
         int s;
@@ -212,17 +224,17 @@ void download(int *connectedOrNot){
             printf("pthread_create\n");
             exit (EXIT_FAILURE);
         } 
-       /* s = pthread_detach(t1);
+        s = pthread_detach(t1);
         if (s != 0) {
             printf("pthread_detach\n");
             exit(EXIT_FAILURE);
-        }*/
-        /*s = pthread_join (t1, &res);
+        }
+        s = pthread_join (t1, &res);
         if (s != 0){
             printf("pthread_join\n");
             exit (EXIT_FAILURE);
-        }*/
-        /*} else {
+        }
+        } else {
             perror("Error\n");
         }*/
     }
@@ -235,7 +247,7 @@ void download(int *connectedOrNot){
 void listSongs(int *connectedOrNot){//TODO F2
     if(*connectedOrNot){
         char frame_buffer[FRAME_SIZE] = {0};
-        doThingsTrama(frame_buffer,0x02,"LIST_SONGS"," ");
+        fillFrame(frame_buffer,0x02,"LIST_SONGS"," ");
         
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
 
@@ -260,7 +272,7 @@ void listSongs(int *connectedOrNot){//TODO F2
 void listPlaylists(int *connectedOrNot){//TODO F2
      if(*connectedOrNot){
         char frame_buffer[FRAME_SIZE] = {0};
-        doThingsTrama(frame_buffer,0x06,"LIST_PLAYLISTS"," ");
+        fillFrame(frame_buffer,0x06,"LIST_PLAYLISTS"," ");
 
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
 
@@ -335,7 +347,7 @@ int controleCommands(char whichCommand[50],int *connectedOrNot) {
         }
 
         if(strcasecmp(whichCommand1,"DOWNLOAD") == 0){ //TODO F3
-            download(connectedOrNot);
+            download(connectedOrNot, whichCommand);
             flag=1; 
         }
 

@@ -120,7 +120,7 @@ void splitFrame(Frame *frame,char *tokens[]) {
     }
 }
 
-void doThingsTrama(char frame_buffer[], uint8_t type,  char *header,  char *data) {
+void fillFrame(char frame_buffer[], uint8_t type,  char *header,  char *data) {
     Frame *poole_frame;
     poole_frame = (Frame *)malloc(sizeof(Frame));//cada cop que entradara aqui,amplia una posicio el malloc el realloc
     build_frame(poole_frame, type, header, data);

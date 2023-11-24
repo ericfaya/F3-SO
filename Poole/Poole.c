@@ -1,6 +1,50 @@
 #include "Poole.h"
 #include "config.h"
 
+int findSongInDirectory(const char *directory, const char *song_name, char *path_found) {
+    DIR *dir;
+    struct dirent *entry;
+    char path[1024];
+    int found = 0;
+
+    dir = opendir(directory);
+    if (dir == NULL) {
+        perror("No se pudo abrir el directorio");
+        return 0;
+    }
+
+    while (!found && (entry = readdir(dir)) != NULL) {
+        if (entry->d_name[0] == '.') {
+            continue;
+        }
+        snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name);
+
+        struct stat path_stat;
+        stat(path, &path_stat);
+        if (S_ISDIR(path_stat.st_mode)) {
+            found = findSongInDirectory(path, song_name, path_found);
+        } else {
+            
+            char *dot = strstr(entry->d_name, ".mp3");
+            if (dot && strcmp(dot, ".mp3") == 0) {
+                char file_without_extension[dot - entry->d_name + 1];
+                strncpy(file_without_extension, entry->d_name, dot - entry->d_name);
+                file_without_extension[dot - entry->d_name] = '\0';
+
+                
+                if (strcmp(file_without_extension, song_name) == 0 || strcmp(entry->d_name, song_name) == 0) {
+                    strcpy(path_found, path); 
+                    found = 1;
+                }
+            }
+        }
+    }
+    closedir(dir);
+    return found;
+}
+
+
+
 void listSongsInDirectory(char *directory, char *result, int includeDirs) {
     DIR *directori;
     struct dirent *entrada;
@@ -69,7 +113,7 @@ void sendSongListResponse(int socket) {
 
     snprintf(data2, sizeof(data2), "%s", songs);
     char frame_buffer[FRAME_SIZE] = {0};
-    doThingsTrama(frame_buffer,0x02,"SONGS_RESPONSE",data2);
+    fillFrame(frame_buffer,0x02,"SONGS_RESPONSE",data2);
 
     send(socket, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
 }
@@ -83,7 +127,7 @@ void sendPlayListResponse(int socket) {
     snprintf(data2, sizeof(data2), "%s", songs);
     
     char frame_buffer[FRAME_SIZE] = {0};
-    doThingsTrama(frame_buffer,0x02,"PLAYLISTS_RESPONSE",data2);
+    fillFrame(frame_buffer,0x02,"PLAYLISTS_RESPONSE",data2);
 
     send(socket, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
 }
@@ -124,6 +168,25 @@ int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_fr
 
     else if (strcmp(incoming_frame->header, "DOWNLOAD_SONG") == 0)
     {
+        char *song_to_find = malloc(strlen(incoming_frame->data) + 5);
+
+       
+    
+        strcpy(song_to_find, incoming_frame->data);
+
+        char *path_found = malloc(PATH_MAX);
+
+        printf ("song a trobar: %s \n\n", song_to_find);
+
+        int found = findSongInDirectory("Files/floyd", song_to_find, path_found);
+        if (found) {
+            printF("\nCanço trobada!\n");
+        }
+        else{
+            printF("\nCanço no trubada\n");
+        }
+
+        /*
        pthread_t t1;
         void *res;
         int s;
@@ -137,7 +200,9 @@ int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_fr
             printf("pthread_join\n");
             exit (EXIT_FAILURE);
         }
+        */
     }
+    
 
     else if (strcmp(incoming_frame->header, "EXIT") == 0)
     {
@@ -160,7 +225,7 @@ void enviarAcknowledge(int newsock,int errorSocketOrNot) {
     }
     
     char frame_buffer[FRAME_SIZE] = {0};
-    doThingsTrama(frame_buffer,0x01,header," ");
+    fillFrame(frame_buffer,0x01,header," ");
         
     send(newsock, frame_buffer, 256, 0);//Bowman send poole
 }
@@ -293,7 +358,7 @@ int main(int argc, char *argv[]){
 
 
     char frame_buffer[FRAME_SIZE] = {0};
-    doThingsTrama(frame_buffer,0x01,"NEW_POOLE",data2);
+    fillFrame(frame_buffer,0x01,"NEW_POOLE",data2);
     
 
     struct sockaddr_in server_addr;    //sockaddr_in: struct defineix l’estructura que permet configurar diversos paràmetres del socket com IP, port

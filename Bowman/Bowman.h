@@ -35,7 +35,7 @@ typedef struct
 void freeMemory(Bowman* bowmaneta,int numUsuaris);
 void printInfo(Bowman* bowmaneta);
 void connectDiscovery(char *tokens[]);
-void download(int *connectedOrNot);
+void download(int *connectedOrNot, char *commandInput);
 void listSongs(int *connectedOrNot);
 void listPlaylists(int *connectedOrNot);
 void checkDownload(int *connectedOrNot);

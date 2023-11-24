@@ -31,5 +31,5 @@ int receive_frame(int sockfd, Frame *frame);
 void print_frame(Frame *frame);
 void pad_frame(Frame *frame, char *frame_buffer);
 void splitFrame(Frame *frame,char *tokens[]);
-void doThingsTrama(char frame_buffer[], uint8_t type,  char *header,  char *data);
+void fillFrame(char frame_buffer[], uint8_t type,  char *header,  char *data);
 #endif

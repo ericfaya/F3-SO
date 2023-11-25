@@ -1,6 +1,65 @@
 #include "Poole.h"
 #include "config.h"
 
+
+void sendFileData(int socket, const char *file_path) {
+    FILE *file = fopen(file_path, "rb"); //shaura d canviar, fopen NO ES POT FER SERVIR
+    if (file == NULL) {
+        perror("no es pot obrir");
+        return;
+    }
+
+    const char *header = "FILE_DATA";
+    size_t header_len = strlen(header);
+
+    size_t data_capacity = FRAME_SIZE - 3 - header_len;
+
+    
+    char *file_data = malloc(data_capacity);
+    if (!file_data) {
+        perror("no es fa be el malloc");
+        fclose(file);
+        return;
+    }
+
+    size_t bytes_read;
+    while ((bytes_read = fread(file_data, 1, data_capacity, file)) > 0) {
+        char frame_buffer[FRAME_SIZE];
+       
+        fillFrame(frame_buffer, 0x04, header, file_data, bytes_read);
+        send(socket, frame_buffer, FRAME_SIZE, 0); 
+    }
+
+    free(file_data);
+    fclose(file);
+}
+
+
+
+char *calculateMD5(const char *filename) {
+    char *command = (char *)malloc(strlen(filename) + 10);
+    sprintf(command, "md5sum \"%s\"", filename);//el filename es el .mp3
+
+    FILE *stream = popen(command, "r"); // executem comanda en mode lectura desde aqui 
+    free(command);
+
+    if (stream == NULL) {
+        perror("popen");
+        return NULL;
+    }
+
+    char *md5sum = (char *)malloc(33); // es un hash de 32 caracters mes \0
+    if (fscanf(stream, "%32s", md5sum) != 1) {
+        perror("fscanf");
+        free(md5sum);
+        pclose(stream);
+        return NULL;
+    }
+
+    pclose(stream);
+    return md5sum; //shaura d lliberar memoria
+}
+
 int findSongInDirectory(const char *directory, const char *song_name, char *path_found) {
     DIR *dir;
     struct dirent *entry;
@@ -27,12 +86,12 @@ int findSongInDirectory(const char *directory, const char *song_name, char *path
             
             char *dot = strstr(entry->d_name, ".mp3");
             if (dot && strcmp(dot, ".mp3") == 0) {
-                char file_without_extension[dot - entry->d_name + 1];
-                strncpy(file_without_extension, entry->d_name, dot - entry->d_name);
-                file_without_extension[dot - entry->d_name] = '\0';
+                char nomSenseExt[dot - entry->d_name + 1];
+                strncpy(nomSenseExt, entry->d_name, dot - entry->d_name);
+                nomSenseExt[dot - entry->d_name] = '\0';
 
                 
-                if (strcmp(file_without_extension, song_name) == 0 || strcmp(entry->d_name, song_name) == 0) {
+                if (strcmp(nomSenseExt, song_name) == 0 || strcmp(entry->d_name, song_name) == 0) {
                     strcpy(path_found, path); 
                     found = 1;
                 }
@@ -168,23 +227,49 @@ int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_fr
 
     else if (strcmp(incoming_frame->header, "DOWNLOAD_SONG") == 0)
     {
-        char *song_to_find = malloc(strlen(incoming_frame->data) + 5);
+    char path_found[PATH_MAX];
+    char *song_name = incoming_frame->data; 
 
-       
     
-        strcpy(song_to_find, incoming_frame->data);
-
-        char *path_found = malloc(PATH_MAX);
-
-        printf ("song a trobar: %s \n\n", song_to_find);
-
-        int found = findSongInDirectory("Files/floyd", song_to_find, path_found);
-        if (found) {
-            printF("\nCanço trobada!\n");
+    int found = findSongInDirectory("Files/floyd", song_name, path_found);
+    if (found) {
+        
+        struct stat st;
+        if (stat(path_found, &st) == -1) {
+            perror("Error al obtener información del archivo");
+            return -1;
         }
-        else{
-            printF("\nCanço no trubada\n");
+        int file_size = st.st_size;
+
+        // Calcular el MD5SUM
+        char *md5sum = calculateMD5(path_found);
+        if (md5sum == NULL) {
+            return -1;
         }
+
+        // calculem tamany de data amb els 3 components
+        int data_info_size = strlen(song_name) + 20 + 32 + 2; 
+        char *data_info = malloc(data_info_size);
+        if (data_info == NULL) {
+            perror("No se pudo asignar memoria para data_info");
+            free(md5sum);
+            return -1;
+        }
+
+        //trama pel primer frame, el del md5
+        snprintf(data_info, data_info_size, "%s&%d&%s", song_name, file_size, md5sum);
+
+        // Enviar la trama
+        char frame_buffer[FRAME_SIZE];
+        fillFrame(frame_buffer, 0x04, "NEW_FILE", data_info);
+        send(*newsock, frame_buffer, FRAME_SIZE, 0); //aquest l'envia bé
+        sendFileData(*newsock, path_found);
+
+        free(data_info); 
+        free(md5sum);    
+    } else {
+       
+    }
 
         /*
        pthread_t t1;

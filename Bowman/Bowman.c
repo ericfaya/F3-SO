@@ -213,6 +213,19 @@ void download(int *connectedOrNot, char *commandInput){
         }
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);
         free(command);
+
+        Frame incoming_frame;
+        
+        int errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
+        
+        if (errorSocketOrNot >= 0) {
+            //TODO mostrar les cansons
+        } else {
+            perror("Error\n");
+        }
+        
+        free(incoming_frame.header);
+        free(incoming_frame.data);
        
 
         /*    

@@ -15,6 +15,7 @@
 #include <pthread.h>
 #include <time.h>
 #include <ctype.h>
+#include <limits.h>
 #include <strings.h> 
 #include "Frame.h"
 

@@ -219,6 +219,42 @@ void *downloadSongs  (void *arg){
     return (void *) arg;
 }
 
+int receiveFileData(int sockfd, int fd_song) {
+    Frame incoming_frame;
+    int fileCompletat = 0;
+
+    while (!fileCompletat) {
+        int errorSocketOrNot = receive_frame(sockfd, &incoming_frame);
+        if (errorSocketOrNot >= 0) {
+            size_t data_capacity = FRAME_SIZE - 3 - incoming_frame.header_length;
+
+            if (strcmp(incoming_frame.header, "FILE_DATA") == 0) {
+                print_frame(&incoming_frame);
+                ssize_t bytes_written = write(fd_song, incoming_frame.data, data_capacity/*strlen(incoming_frame.data)*/ /*244*/);
+                //           printf("Total bytes written: %zd\n", bytes_written);
+
+                if (bytes_written == -1) {
+                    perror("Error");
+                    free(incoming_frame.header);
+                    free(incoming_frame.data);
+                    return -1;
+                }
+               /* for (size_t i = 0; i < strlen(incoming_frame.data); i++) {
+                printf("%c", incoming_frame.data[i]);
+            } */
+            } else {
+                fileCompletat = 1;
+            }
+
+            free(incoming_frame.header);
+            free(incoming_frame.data);
+        } else {
+            return -1;
+        }
+    }
+    return 0;
+}
+
 void download(int *connectedOrNot, char *commandInput){
     printF("Download started!\n");
     if(*connectedOrNot==1){
@@ -239,50 +275,26 @@ void download(int *connectedOrNot, char *commandInput){
         free(command);
 
         Frame incoming_frame;
-        while(1){
-            int errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
-            //print_frame(&incoming_frame);
-            if (errorSocketOrNot >= 0) {   
-                         // createFileSong(&incoming_frame);
+        receive_frame(sockfd_poole, &incoming_frame);
+        
+        char song_path[PATH_MAX];
+        sprintf(song_path, "%s.mp3", song_name);
+         
+        int fd_song = open(song_path, O_WRONLY | O_CREAT | O_TRUNC, 0666); //int fd_song = open(song_path, O_WRONLY | O_APPEND | O_CREAT, 0666);
 
-                //TODO mostrar les cansons
-            } else {
-                perror("Error\n");
-                break;
-            }
+        if (receiveFileData(sockfd_poole, fd_song) == 0) {
+            printF("sha fet tota la descarga\n");
         }
         
         free(incoming_frame.header);
         free(incoming_frame.data);
        
 
-        /*    
-        pthread_t t1;
-        //void *res;
-        int s;
-        s = pthread_create (&t1, NULL, downloadSongs, NULL); //TODO DESCARREGAR CANSONS
-        if (s != 0){
-            printf("pthread_create\n");
-            exit (EXIT_FAILURE);
-        } 
-        s = pthread_detach(t1);
-        if (s != 0) {
-            printf("pthread_detach\n");
-            exit(EXIT_FAILURE);
-        }
-        s = pthread_join (t1, &res);
-        if (s != 0){
-            printf("pthread_join\n");
-            exit (EXIT_FAILURE);
-        }
-        } else {
-            perror("Error\n");
-        }*/
+        
     }
     else
         printF("Cannot download, you are not connected to HAL 9000\n");
 }
-
 
 
 void listSongs(int *connectedOrNot){//TODO F2

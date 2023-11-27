@@ -8,7 +8,7 @@ void sendFileData(int socket, const char *file_path) {
     asprintf(&buffer," %s:\n\n", file_path);  
     write(1, buffer, strlen(buffer));
     free(buffer);
-    fd_file = open(file_path, O_RDONLY); //shaura d canviar, fopen NO ES POT FER SERVIR
+    fd_file = open(file_path, O_RDONLY ); //shaura d canviar, fopen NO ES POT FER SERVIR
     if(fd_file == -1){
         printF("ERROR: File not found\n");
     }else{
@@ -22,6 +22,7 @@ void sendFileData(int socket, const char *file_path) {
         bytes = (char *)malloc(sizeof(char) * data_capacity);
         ssize_t readSize = read(fd_file, bytes,sizeof(char) * data_capacity);
         while(1){
+            //printf("Total bytes read: %zd\n", readSize);
 
             if (readSize == -1) {
                 perror("Error reading from the file");
@@ -43,7 +44,7 @@ void sendFileData(int socket, const char *file_path) {
 
             send(socket, frame_buffer, 256, 0);//Bowman send poole
 
-            /* for (ssize_t i = 0; i < readSize; i++) {
+             /*for (ssize_t i = 0; i < readSize; i++) {
                 printf("%c", bytes[i]);
             } */
         

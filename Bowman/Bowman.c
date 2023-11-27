@@ -6,6 +6,30 @@ int numUsuaris;
 char *tokens[MAX_TOKENS];
 int sockfd_poole;
 
+void createFileSong(Frame *frame) {
+    const char *file_path="Files/floyd/Lista2/Song1.mp3";
+     int fd_file;
+    char *buffer;
+    asprintf(&buffer," %s:\n\n", file_path);  
+    write(1, buffer, strlen(buffer));
+    free(buffer);
+    fd_file = open(file_path, O_RDWR | O_APPEND | O_CREAT , 0666);
+    if(fd_file == -1){
+        printF("ERROR: File not found\n");
+    }else{
+    
+        ssize_t writeSize = write(fd_file, frame->data, strlen(frame->data));
+         if (writeSize == -1) {
+            perror("Error writing to file");
+        } else {
+            printf("Successfully wrote %zu bytes to the file\n", writeSize);
+        }
+
+        close(fd_file);
+    }
+
+}
+
 void logoutDiscovery(){
     char frame_buffer[FRAME_SIZE] = {0};
     fillFrame(frame_buffer,0x06,"EXIT",tokens[0]);
@@ -215,13 +239,17 @@ void download(int *connectedOrNot, char *commandInput){
         free(command);
 
         Frame incoming_frame;
-        
-        int errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
-        
-        if (errorSocketOrNot >= 0) {
-            //TODO mostrar les cansons
-        } else {
-            perror("Error\n");
+        while(1){
+            int errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
+            //print_frame(&incoming_frame);
+            if (errorSocketOrNot >= 0) {   
+                         // createFileSong(&incoming_frame);
+
+                //TODO mostrar les cansons
+            } else {
+                perror("Error\n");
+                break;
+            }
         }
         
         free(incoming_frame.header);

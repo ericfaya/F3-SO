@@ -3,36 +3,64 @@
 
 
 void sendFileData(int socket, const char *file_path) {
-    FILE *file = fopen(file_path, "rb"); //shaura d canviar, fopen NO ES POT FER SERVIR
-    if (file == NULL) {
-        perror("no es pot obrir");
-        return;
+    int fd_file;
+    char *buffer;
+    asprintf(&buffer," %s:\n\n", file_path);  
+    write(1, buffer, strlen(buffer));
+    free(buffer);
+    fd_file = open(file_path, O_RDONLY); //shaura d canviar, fopen NO ES POT FER SERVIR
+    if(fd_file == -1){
+        printF("ERROR: File not found\n");
+    }else{
+        const char *header = "FILE_DATA";
+        size_t header_len = strlen(header);
+
+        size_t data_capacity = FRAME_SIZE - 3 - header_len;
+        printf("Data Capacity: %zu bytes\n", data_capacity);
+
+        char *bytes;
+        bytes = (char *)malloc(sizeof(char) * data_capacity);
+        ssize_t readSize = read(fd_file, bytes,sizeof(char) * data_capacity);
+        while(1){
+
+            if (readSize == -1) {
+                perror("Error reading from the file");
+                close(fd_file);
+                free(bytes); 
+            }          
+
+           // printf("\n\nData read:\n\n");
+            /*for (ssize_t i = 0; i < readSize; i++) {
+                printf("%02X ", (unsigned char)bytes[i]);
+            }*/
+
+            char data2[FRAME_SIZE - 3 - strlen("FILE_DATA")]; // -3 por 'type' y 'header_length'.
+            snprintf(data2, sizeof(data2), "%s", bytes);
+
+
+            char frame_buffer[FRAME_SIZE] = {0};
+            fillFrame(frame_buffer,0x04,"FILE_DATA",data2);
+
+            send(socket, frame_buffer, 256, 0);//Bowman send poole
+
+            /* for (ssize_t i = 0; i < readSize; i++) {
+                printf("%c", bytes[i]);
+            } */
+        
+            if (readSize == 0)            // Check if EOF
+            {
+                break;
+            }
+            else
+            {
+                readSize = read(fd_file, bytes,sizeof(char) * data_capacity);
+            }
+        }
+        free(bytes);
     }
-
-    const char *header = "FILE_DATA";
-    size_t header_len = strlen(header);
-
-    size_t data_capacity = FRAME_SIZE - 3 - header_len;
-
-    
-    char *file_data = malloc(data_capacity);
-    if (!file_data) {
-        perror("no es fa be el malloc");
-        fclose(file);
-        return;
-    }
-
-    size_t bytes_read;
-    while ((bytes_read = fread(file_data, 1, data_capacity, file)) > 0) {
-        char frame_buffer[FRAME_SIZE];
-       
-        fillFrame(frame_buffer, 0x04, header, file_data, bytes_read);
-        send(socket, frame_buffer, FRAME_SIZE, 0); 
-    }
-
-    free(file_data);
-    fclose(file);
+    close(fd_file);
 }
+
 
 
 
@@ -263,6 +291,9 @@ int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_fr
         char frame_buffer[FRAME_SIZE];
         fillFrame(frame_buffer, 0x04, "NEW_FILE", data_info);
         send(*newsock, frame_buffer, FRAME_SIZE, 0); //aquest l'envia bé
+          
+      //      printf("%s",path_found);
+
         sendFileData(*newsock, path_found);
 
         free(data_info); 

@@ -237,21 +237,6 @@ void logout(){
     }   
 }
 
-void *downloadSongs  (void *arg){
-    
-    char *data = (char *)arg;
-    int contador=0;
-    printf("data: %s",data);
-    while(contador<10){//50 segfundos
-        int multipli=5*contador;
-        printf("\nHan pasado %d segundpos \n",multipli);
-        sleep(5);
-        contador++;
-    }     
-    pthread_exit(NULL); // Terminar el hilo
-
-    return (void *) arg;
-}
 
 int receiveFileData(int sockfd, int fd_song) {
     Frame incoming_frame;
@@ -283,6 +268,19 @@ int receiveFileData(int sockfd, int fd_song) {
     return 0;
 }
 
+void *downloadSongs  (void *arg){
+    
+    int fd_song = *((int *)arg);  // Cast and dereference the argument
+    if (receiveFileData(sockfd_poole, fd_song) == 0) {
+        printF("Descarga completada\n");
+    }
+    close(fd_song);
+
+    pthread_exit(NULL); // Terminar el hilo
+
+    return NULL;
+}
+
 void download(int *connectedOrNot, char *commandInput){
     printF("Download started!\n");
     if (*connectedOrNot == 1) {
@@ -310,10 +308,27 @@ void download(int *connectedOrNot, char *commandInput){
         sprintf(song_path, "%s.mp3", song_name);
         int fd_song = open(song_path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 
-        if (receiveFileData(sockfd_poole, fd_song) == 0) {
+
+        
+       pthread_t t1;
+        void *res;
+        int s;
+        s = pthread_create (&t1, NULL, downloadSongs, (void *)&fd_song); //TODO ENVIAR MD6SUM
+        if (s != 0){
+            printf("pthread_create\n");
+            exit (EXIT_FAILURE);
+        } 
+        s = pthread_join (t1, &res); //TODO no ca esperarse el join,tu lo que vols es que es fagi en paralel
+        if (s != 0){
+            printf("pthread_join\n");
+            exit (EXIT_FAILURE);
+        }
+        
+
+       /* if (receiveFileData(sockfd_poole, fd_song) == 0) {AIXO ho farem al thread
             printF("Descarga completada\n");
         }
-        close(fd_song);
+        close(fd_song);*/
 
         // Verificar MD5SUM
         char *original_md5 = extractMD5SUM(file_info_frame.data);
@@ -323,13 +338,12 @@ void download(int *connectedOrNot, char *commandInput){
             printF("Error en la verificación MD5\n");
         }
 
-        free(file_info_frame.header);
-        free(file_info_frame.data);
+      //  free(file_info_frame.header);
+       // free(file_info_frame.data);
     } else {
         printF("Cannot download, you are not connected to HAL 9000\n");
     }
 }
-
 
 void listSongs(int *connectedOrNot){//TODO F2
     if(*connectedOrNot){

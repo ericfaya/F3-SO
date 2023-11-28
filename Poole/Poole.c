@@ -1,6 +1,13 @@
 #include "Poole.h"
 #include "config.h"
 
+Poole *poolete;
+int numUsuaris;//Hem de saber cuantradas usuaris estan conectats en el servidor(discovery)
+int sockfd_poole_server;
+int max_sd ;
+int clientrada_sockets[10];
+fd_set master_set;
+
 
 void sendFileData(int socket, const char *file_path) {
     int fd_file = open(file_path, O_RDONLY);
@@ -202,18 +209,12 @@ void sendPlayListResponse(int socket) {
     send(socket, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
 }
 
-void *downloadSongs  (void *arg){
+/*void *downloadSongs  (void *arg){
     char *data = (char *)arg;
     int contador=0;
-    printf("data: %s",data);
-    while(contador<10){//50 segfundos
-        int multipli=5*contador;
-        printf("\nHan pàsado %d segundpos \n",multipli);
-        sleep(5);
-        contador++;
-    }     
+   
     return (void *) arg;
-}
+}*/
 
 
 int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_frame) {
@@ -223,23 +224,44 @@ int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_fr
     }
    
     if (strcmp(incoming_frame->header, "NEW_BOWMAN") == 0) { 
+        char *buffer;
+        asprintf(&buffer,"New user connected: %s.\n\n...", incoming_frame->data);  
+        write(STDOUT_FILENO, buffer, strlen(buffer));   
+        free(buffer);
+    
         enviarAcknowledge(*newsock, errorSocketOrNot);
     }
 
     else if (strcmp(incoming_frame->header, "LIST_SONGS") == 0)
     {
+        char *buffer;
+        asprintf(&buffer,"New request – %s requires the list of songs.\nSending song list to %s\n\n",incoming_frame->data, incoming_frame->data);  
+        write(STDOUT_FILENO, buffer, strlen(buffer));   
+        free(buffer);
         sendSongListResponse(*newsock);
     }
 
     else if (strcmp(incoming_frame->header, "LIST_PLAYLISTS") == 0)
     {
+        char *buffer;
+        asprintf(&buffer,"New request – %s requires the list of playlists.\nSending playlist list to %s\n\n",incoming_frame->data, incoming_frame->data);  
+        write(STDOUT_FILENO, buffer, strlen(buffer));   
+        free(buffer);
+        sendSongListResponse(*newsock);
         sendPlayListResponse(*newsock);
     }
 
-    else if (strcmp(incoming_frame->header, "DOWNLOAD_SONG") == 0)
+    else if (strcmp(incoming_frame->header, "DOWNLOAD_SONG") == 0) //TODO    A total of 2 songs will be sent. AQUEST PRINTF,SA DE CONTAR EL NUMERO DE CANSONS O ALGO AIXI K SENVIEN
     {
-    char path_found[PATH_MAX];
-    char *song_name = incoming_frame->data; 
+        char path_found[PATH_MAX];
+        char *song_name = incoming_frame->data; 
+
+        char *buffer;
+        asprintf(&buffer,"New request – %s wants to download %s\n Sending %s to %s\n\n", incoming_frame->data,song_name,song_name,incoming_frame->data);  
+        write(STDOUT_FILENO, buffer, strlen(buffer));   
+        free(buffer);
+        sendSongListResponse(*newsock);
+        sendPlayListResponse(*newsock);
 
     
     int found = findSongInDirectory("Files/floyd", song_name, path_found);
@@ -252,14 +274,12 @@ int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_fr
         }
         int file_size = st.st_size;
 
-        // Calcular el MD5SUM
-        char *md5sum = calculateMD5(path_found);
+        char *md5sum = calculateMD5(path_found);        // Calcular el MD5SUM
         if (md5sum == NULL) {
             return -1;
         }
 
-        // calculem tamany de data amb els 3 components
-        int data_info_size = strlen(song_name) + 20 + 32 + 2; 
+        int data_info_size = strlen(song_name) + 20 + 32 + 2;         // calculem tamany de data amb els 3 components
         char *data_info = malloc(data_info_size);
         if (data_info == NULL) {
             perror("No se pudo asignar memoria para data_info");
@@ -267,16 +287,13 @@ int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_fr
             return -1;
         }
 
-        //trama pel primer frame, el del md5
-        snprintf(data_info, data_info_size, "%s&%d&%s", song_name, file_size, md5sum);
+        snprintf(data_info, data_info_size, "%s&%d&%s", song_name, file_size, md5sum);        //trama pel primer frame, el del md5
 
-        // Enviar la trama
-        char frame_buffer[FRAME_SIZE];
+        char frame_buffer[FRAME_SIZE];        // Enviar la trama
+
         fillFrame(frame_buffer, 0x04, "NEW_FILE", data_info);
         send(*newsock, frame_buffer, FRAME_SIZE, 0); //aquest l'envia bé
           
-      //      printf("%s",path_found);
-
         sendFileData(*newsock, path_found);
 
         free(data_info); 
@@ -330,17 +347,13 @@ void enviarAcknowledge(int newsock,int errorSocketOrNot) {
 }
 
 void connectToBowman(Poole *poolete){
-    char *buffer;
-    asprintf(&buffer,"Connected to Discovery at %s:%d\n\n", poolete[0].ipDiscovery, poolete[0].portDiscovery);  
-    write(STDOUT_FILENO, buffer, strlen(buffer));   
-    free(buffer);
     uint16_t poole_port = poolete[0].portPoole;
 
     if (poole_port < 1) {
         write(STDOUT_FILENO, "Error: Invalid port number(s)\n", sizeof("Error: Invalid port number(s)\n"));   
         exit(EXIT_FAILURE);
     }
-    int sockfd_poole_server = socket(AF_INET, SOCK_STREAM, 0);
+    sockfd_poole_server = socket(AF_INET, SOCK_STREAM, 0);
 
     if (sockfd_poole_server < 0) {
         perror("Error creating sockets");
@@ -362,12 +375,12 @@ void connectToBowman(Poole *poolete){
         perror("Error listening on socket");
         exit(EXIT_FAILURE);
     }
-    fd_set master_set;
+    /*fd_set master_set;*/
     FD_ZERO(&master_set);
     FD_SET(sockfd_poole_server, &master_set);
-    int max_sd = sockfd_poole_server;
+    /*int   pel sigfnal ho hem de fer global*/ max_sd = sockfd_poole_server;
 
-    int clientrada_sockets[10];
+/*  int clientrada_sockets[10];*/  
     for (int i = 0; i < 10; i++) {
         clientrada_sockets[i] = 0; 
     }
@@ -434,10 +447,24 @@ void freeAndClose(Poole *poolete,int numUsuaris){
     free(poolete);
 }
 
+void kctrlc(){ 
+    freeAndClose(/*poole_frame,*/poolete,numUsuaris);
+    for (int i = 0; i <= max_sd; ++i) {// sockets amb arrays ja afegits i creats
+        int sd = clientrada_sockets[i];
+        close(sd);
+        FD_CLR(sd, &master_set);
+        clientrada_sockets[i] = 0;
+    }
+    close(sockfd_poole_server);
+
+    //logout(); //SIGNAL CONTROL+C TODO: S'HAURA DE FER VARIABLE GLOBAL  crec EL FD SOCKET :int sockfd_poole 
+}
+
 int main(int argc, char *argv[]){
-    Poole *poolete;
-    int numUsuaris;//Hem de saber cuantradas usuaris estan conectats en el servidor(discovery)
-    
+    //Poole *poolete;
+    //int numUsuaris;//Hem de saber cuantradas usuaris estan conectats en el servidor(discovery)
+    signal(SIGINT, kctrlc);
+
     if (argc != 2){
         printF("ERROR: Incorrect number of argumentradas\n");
         return -1;
@@ -447,7 +474,7 @@ int main(int argc, char *argv[]){
     if (poolete == NULL){
         return -2;
     }
-  
+
     char *userName2 = poolete[0].fullName;
     char *ipPoole = poolete[0].ipPoole;
     uint16_t portPoole = poolete[0].portPoole;
@@ -492,6 +519,11 @@ int main(int argc, char *argv[]){
     printaAcknowledge(info,&frameAcknoledge);
     
     close(sockfd);
+    char *buffer;
+    asprintf(&buffer,"\nReading configuration file\nConnecting %s Server to the system..\nConnected to HAL 9000 System, ready to listen to Bowmans petitions\n\nWaiting for connections...\n\n", userName2);  
+    write(STDOUT_FILENO, buffer, strlen(buffer));   
+    free(buffer);
+    
 
     connectToBowman(poolete);
 

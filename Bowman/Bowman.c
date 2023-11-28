@@ -272,7 +272,7 @@ void *downloadSongs  (void *arg){
     
     int fd_song = *((int *)arg);  // Cast and dereference the argument
     if (receiveFileData(sockfd_poole, fd_song) == 0) {
-        printF("Descarga completada\n");
+        //printF("Descarga completada\n");
     }
     close(fd_song);
 
@@ -309,20 +309,21 @@ void download(int *connectedOrNot, char *commandInput){
         int fd_song = open(song_path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 
 
-        
-       pthread_t t1;
-        void *res;
+        printF("Descarga completada\n");
+
+        pthread_t t1;
+        //void *res;
         int s;
         s = pthread_create (&t1, NULL, downloadSongs, (void *)&fd_song); //TODO ENVIAR MD6SUM
         if (s != 0){
-            printf("pthread_create\n");
+            printF("pthread_create\n");
             exit (EXIT_FAILURE);
         } 
-        s = pthread_join (t1, &res); //TODO no ca esperarse el join,tu lo que vols es que es fagi en paralel
+       /* s = pthread_join (t1, &res); //TODO no ca esperarse el join,tu lo que vols es que es fagi en paralel
         if (s != 0){
             printf("pthread_join\n");
             exit (EXIT_FAILURE);
-        }
+        }*/
         
 
        /* if (receiveFileData(sockfd_poole, fd_song) == 0) {AIXO ho farem al thread
@@ -338,8 +339,8 @@ void download(int *connectedOrNot, char *commandInput){
             printF("Error en la verificación MD5\n");
         }
 
-      //  free(file_info_frame.header);
-       // free(file_info_frame.data);
+        free(file_info_frame.header);
+        free(file_info_frame.data);
     } else {
         printF("Cannot download, you are not connected to HAL 9000\n");
     }

@@ -39,7 +39,7 @@ int build_frame(Frame *frame, uint8_t type,  char *header,  char *data) {
         strncpy(frame->data, data, sizeOfData - 1);
         frame->data[sizeOfData - 1] = '\0'; // Asegurar \0 d nou
     }
-    print_frame(frame);
+    //print_frame(frame);
     return 0;
 }
 int build_frame2(Frame *frame, uint8_t type, char *header, char *data, size_t data_len) {

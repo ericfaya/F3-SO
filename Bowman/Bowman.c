@@ -6,29 +6,63 @@ int numUsuaris;
 char *tokens[MAX_TOKENS];
 int sockfd_poole;
 
-void createFileSong(Frame *frame) {
-    const char *file_path="Files/floyd/Lista2/Song1.mp3";
-     int fd_file;
-    char *buffer;
-    asprintf(&buffer," %s:\n\n", file_path);  
-    write(1, buffer, strlen(buffer));
-    free(buffer);
-    fd_file = open(file_path, O_RDWR | O_APPEND | O_CREAT , 0666);
-    if(fd_file == -1){
-        printF("ERROR: File not found\n");
-    }else{
-    
-        ssize_t writeSize = write(fd_file, frame->data, strlen(frame->data));
-         if (writeSize == -1) {
-            perror("Error writing to file");
-        } else {
-            printf("Successfully wrote %zu bytes to the file\n", writeSize);
-        }
-
-        close(fd_file);
+char *extractMD5SUM(const char *file_info) {
+    char *file_info_copy = strdup(file_info); // Hacer una copia ya que strtok modifica la cadena original
+    if (file_info_copy == NULL) {
+        perror("strdup failed");
+        return NULL;
     }
 
+    char *token;
+    char *md5sum = NULL;
+    token = strtok(file_info_copy, "&");
+    token = strtok(NULL, "&");
+    token = strtok(NULL, "&");
+
+    if (token != NULL) {
+        md5sum = strdup(token);
+    }
+
+    free(file_info_copy);
+    return md5sum; 
 }
+
+char *calculateMD5(const char *filename) {
+    char *command = (char *)malloc(strlen(filename) + 10);
+    sprintf(command, "md5sum \"%s\"", filename);//el filename es el .mp3
+
+    FILE *stream = popen(command, "r"); // executem comanda en mode lectura desde aqui 
+    free(command);
+
+    if (stream == NULL) {
+        perror("popen");
+        return NULL;
+    }
+
+    char *md5sum = (char *)malloc(33); // es un hash de 32 caracters mes \0
+    if (fscanf(stream, "%32s", md5sum) != 1) {
+        perror("fscanf");
+        free(md5sum);
+        pclose(stream);
+        return NULL;
+    }
+
+    pclose(stream);
+    return md5sum; //shaura d lliberar memoria
+}
+
+int verifyMD5SUM(const char *file_path, const char *expected_md5) {
+    char *actual_md5 = calculateMD5(file_path);
+    if (actual_md5 == NULL) {
+        return 1; 
+    }
+
+    int result = strcmp(actual_md5, expected_md5);
+    free(actual_md5);
+
+    return (result == 0) ? 0 : 1; //0 iguals, 1 diferents
+}
+
 
 void logoutDiscovery(){
     char frame_buffer[FRAME_SIZE] = {0};
@@ -226,22 +260,17 @@ int receiveFileData(int sockfd, int fd_song) {
     while (!fileCompletat) {
         int errorSocketOrNot = receive_frame(sockfd, &incoming_frame);
         if (errorSocketOrNot >= 0) {
-            size_t data_capacity = FRAME_SIZE - 3 - incoming_frame.header_length;
-
-            if (incoming_frame.header_length >= strlen("FILE_DATA") &&
-                strncmp(incoming_frame.header, "FILE_DATA", strlen("FILE_DATA")) == 0) {       
-                            //print_frame(&incoming_frame);
-                ssize_t bytes_written = write(fd_song, incoming_frame.data, data_capacity/*strlen(incoming_frame.data)*/ /*244*/);
-                //           printf("Total bytes written: %zd\n", bytes_written);
-
+            if (strcmp(incoming_frame.header, "FILE_DATA") == 0) {
+                size_t data_length = FRAME_SIZE - 3 - incoming_frame.header_length;
+                ssize_t bytes_written = write(fd_song, incoming_frame.data, data_length);
+                
                 if (bytes_written == -1) {
-                    perror("Error");
+                    perror("Error en la escritura del archivo");
                     free(incoming_frame.header);
                     free(incoming_frame.data);
                     return -1;
                 }
-        
-            } else {
+            } else if (strcmp(incoming_frame.header, "FILE_END") == 0){
                 fileCompletat = 1;
             }
 
@@ -256,7 +285,7 @@ int receiveFileData(int sockfd, int fd_song) {
 
 void download(int *connectedOrNot, char *commandInput){
     printF("Download started!\n");
-    if(*connectedOrNot==1){
+    if (*connectedOrNot == 1) {
         char frame_buffer[FRAME_SIZE] = {0};
         char *command = malloc(strlen(commandInput) + 1);
 
@@ -273,26 +302,32 @@ void download(int *connectedOrNot, char *commandInput){
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);
         free(command);
 
-        Frame incoming_frame;
-        receive_frame(sockfd_poole, &incoming_frame);
+        // Recibir el frame de información del archivo
+        Frame file_info_frame;
+        receive_frame(sockfd_poole, &file_info_frame);
         
         char song_path[PATH_MAX];
         sprintf(song_path, "%s.mp3", song_name);
-         
-        int fd_song = open(song_path, O_WRONLY | O_CREAT | O_TRUNC, 0666); //int fd_song = open(song_path, O_WRONLY | O_APPEND | O_CREAT, 0666);
+        int fd_song = open(song_path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 
         if (receiveFileData(sockfd_poole, fd_song) == 0) {
-            printF("sha fet tota la descarga\n");
+            printF("Descarga completada\n");
         }
         close(fd_song);
-        free(incoming_frame.header);
-        free(incoming_frame.data);
-       
 
-        
-    }
-    else
+        // Verificar MD5SUM
+        char *original_md5 = extractMD5SUM(file_info_frame.data);
+        if (verifyMD5SUM(song_path, original_md5) == 0) {
+            printF("Verificación MD5 exitosa\n");
+        } else {
+            printF("Error en la verificación MD5\n");
+        }
+
+        free(file_info_frame.header);
+        free(file_info_frame.data);
+    } else {
         printF("Cannot download, you are not connected to HAL 9000\n");
+    }
 }
 
 

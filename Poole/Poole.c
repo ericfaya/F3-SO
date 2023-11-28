@@ -3,54 +3,46 @@
 
 
 void sendFileData(int socket, const char *file_path) {
-    int fd_file;
-    char *buffer;
-    asprintf(&buffer," %s:\n\n", file_path);  
-    write(1, buffer, strlen(buffer));
-    free(buffer);
-    fd_file = open(file_path, O_RDONLY ); //shaura d canviar, fopen NO ES POT FER SERVIR
-    if(fd_file == -1){
-        printF("ERROR: File not found\n");
-    }else{
-        const char *header = "FILE_DATA";
-        size_t header_len = strlen(header);
-
-        size_t data_capacity = FRAME_SIZE - 3 - header_len;
-        printf("Data Capacity: %zu bytes\n", data_capacity);
-
-        char *bytes;
-        bytes = (char *)malloc(sizeof(char) * data_capacity);
-        ssize_t readSize = read(fd_file, bytes,sizeof(char) * data_capacity);
-        while(readSize > 0){
-            //printf("Total bytes read: %zd\n", readSize);
-
-            if (readSize == -1) {
-                perror("Error reading from the file");
-                close(fd_file);
-                free(bytes); 
-            }          
-
-            char data2[FRAME_SIZE - 3 - strlen("FILE_DATA")]; // -3 por 'type' y 'header_length'.
-            //snprintf(data2, sizeof(data2), "%s", bytes);
-memcpy(data2, bytes, data_capacity);
-
-
-            char frame_buffer[FRAME_SIZE] = {0};
-            fillFrame(frame_buffer,0x04,"FILE_DATA",data2);
-
-            send(socket, frame_buffer, 256, 0);//Bowman send poole
-            free(bytes);
-
-            char *bytes;
-            bytes = (char *)malloc(sizeof(char) * data_capacity);
-            readSize = read(fd_file, bytes,sizeof(char) * data_capacity);
-            
-        }
-                free(bytes);
-
+    int fd_file = open(file_path, O_RDONLY);
+    if (fd_file == -1) {
+        perror("Error opening file");
+        return;
     }
+
+    const char *header = "FILE_DATA";
+    size_t header_len = strlen(header);
+    size_t data_capacity = FRAME_SIZE - 3 - header_len;
+
+    char *bytes = (char *)malloc(data_capacity);
+    if (!bytes) {
+        perror("Failed to allocate memory for bytes");
+        close(fd_file);
+        return;
+    }
+
+    ssize_t readSize;
+    while ((readSize = read(fd_file, bytes, data_capacity)) > 0) {
+        char frame_buffer[FRAME_SIZE] = {0};
+        char header_copy[HEADER_MAX_SIZE]; // Define HEADER_MAX_SIZE según la longitud máxima esperada para un encabezado
+        strcpy(header_copy, header);
+        fillFrame2(frame_buffer, 0x04, header_copy, bytes, readSize);
+
+        send(socket, frame_buffer, FRAME_SIZE, 0);
+    }
+
+    if (readSize == -1) {
+        perror("Error reading from the file");
+    }
+
+    // Enviar el frame final para indicar el fin del archivo
+    char final_frame_buffer[FRAME_SIZE] = {0};
+    fillFrame2(final_frame_buffer, 0x04, "FILE_END", "", 0);
+    send(socket, final_frame_buffer, FRAME_SIZE, 0);
+
+    free(bytes);
     close(fd_file);
 }
+
 
 
 

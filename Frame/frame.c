@@ -41,6 +41,27 @@ int build_frame(Frame *frame, uint8_t type,  char *header,  char *data) {
     }
     return 0;
 }
+int build_frame2(Frame *frame, uint8_t type, char *header, char *data, size_t data_len) {
+    size_t header_len = strlen(header);
+    frame->type = type;
+    frame->header_length = htons(header_len); 
+    frame->header = (char *)malloc(header_len + 1);
+    if (!frame->header) {
+        perror("Failed to allocate memory for header");
+        return -1;
+    }
+    strcpy(frame->header, header);
+
+    frame->data = (char *)malloc(data_len);
+    if (!frame->data) {
+        perror("Failed to allocate memory for data");
+        free(frame->header);
+        return -1;
+    }
+    memcpy(frame->data, data, data_len);
+
+    return 0;
+}
 
 int receive_frame(int sockfd, Frame *frame) {
     char buffer[256];
@@ -81,19 +102,19 @@ int receive_frame(int sockfd, Frame *frame) {
     memcpy(frame->data, &buffer[3 + frame->header_length], data_length);
     frame->data[data_length] = '\0'; // Null-terminar el data
 
-    /*printf("Received frame type: 0x%02X\n", frame->type);
+    printf("Received frame type: 0x%02X\n", frame->type);
     printf("Received frame header length: %u\n", frame->header_length);
     printf("Received frame header: %s\n", frame->header);
     printf("Received frame data: %s\n\n", frame->data);
-   */
+   
     return 0;
 }
 
 void print_frame(Frame *frame) {
-    //printf("Type: 0x%02X\n", frame->type);
-    //printf("Header Length: %u\n", frame->header_length); 
-   // printf("Header: %s\n", frame->header);
-    printf("' %s '\n", frame->data);
+    printf("Type: 0x%02X\n", frame->type);
+    printf("Header Length: %u\n", frame->header_length); 
+    printf("Header: %s\n", frame->header);
+    printf("Data: %s\n", frame->data);
 }
 
 void pad_frame(Frame *frame, char *frame_buffer) {
@@ -106,6 +127,24 @@ void pad_frame(Frame *frame, char *frame_buffer) {
     memcpy(frame_buffer + 3 + header_len, frame->data, data_length);
     memset(frame_buffer + 3 + header_len + data_length, 0, FRAME_SIZE - (3 + header_len + data_length));    //fotre mes 0s si cal
 }
+
+void pad_frame2(Frame *frame, char *frame_buffer, size_t data_len) {
+    frame_buffer[0] = frame->type; // Copiar type
+    uint16_t net_header_length = frame->header_length; // Copiar header_length 
+    memcpy(frame_buffer + 1, &net_header_length, sizeof(net_header_length));
+    size_t header_len = ntohs(net_header_length); // copiar header
+    memcpy(frame_buffer + 3, frame->header, header_len);
+
+    // Copiar los datos binarios usando data_len
+    memcpy(frame_buffer + 3 + header_len, frame->data, data_len);
+
+    // Rellenar el resto del buffer con 0 si es necesario
+    size_t total_frame_length = 3 + header_len + data_len;
+    if (total_frame_length < FRAME_SIZE) {
+        memset(frame_buffer + total_frame_length, 0, FRAME_SIZE - total_frame_length);
+    }
+}
+
 
 void splitFrame(Frame *frame,char *tokens[]) {
     char *delimiter = "&";
@@ -124,11 +163,28 @@ void fillFrame(char frame_buffer[], uint8_t type,  char *header,  char *data) {
     Frame *poole_frame;
     poole_frame = (Frame *)malloc(sizeof(Frame));//cada cop que entradara aqui,amplia una posicio el malloc el realloc
     build_frame(poole_frame, type, header, data);
-
-    
     pad_frame(poole_frame, frame_buffer);
-    //print_frame(poole_frame);
     free(poole_frame->header);
     free(poole_frame->data);
     free(poole_frame);
 }
+
+void fillFrame2(char frame_buffer[], uint8_t type, char *header, char *data, size_t data_len) {
+    Frame *poole_frame = (Frame *)malloc(sizeof(Frame));
+    if (!poole_frame) {
+        perror("Failed to allocate memory for frame");
+        return;
+    }
+
+    if (build_frame2(poole_frame, type, header, data, data_len) != 0) {
+        free(poole_frame);
+        return;
+    }
+
+    pad_frame2(poole_frame, frame_buffer, data_len);
+    free(poole_frame->header);
+    free(poole_frame->data);
+    free(poole_frame);
+}
+
+

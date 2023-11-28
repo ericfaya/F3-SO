@@ -93,7 +93,7 @@ void print_frame(Frame *frame) {
     //printf("Type: 0x%02X\n", frame->type);
     //printf("Header Length: %u\n", frame->header_length); 
    // printf("Header: %s\n", frame->header);
-    printf("Data: %s\n", frame->data);
+    printf("' %s '\n", frame->data);
 }
 
 void pad_frame(Frame *frame, char *frame_buffer) {
@@ -127,7 +127,7 @@ void fillFrame(char frame_buffer[], uint8_t type,  char *header,  char *data) {
 
     
     pad_frame(poole_frame, frame_buffer);
-    print_frame(poole_frame);
+    //print_frame(poole_frame);
     free(poole_frame->header);
     free(poole_frame->data);
     free(poole_frame);

@@ -21,7 +21,7 @@ void sendFileData(int socket, const char *file_path) {
         char *bytes;
         bytes = (char *)malloc(sizeof(char) * data_capacity);
         ssize_t readSize = read(fd_file, bytes,sizeof(char) * data_capacity);
-        while(1){
+        while(readSize > 0){
             //printf("Total bytes read: %zd\n", readSize);
 
             if (readSize == -1) {
@@ -30,34 +30,24 @@ void sendFileData(int socket, const char *file_path) {
                 free(bytes); 
             }          
 
-           // printf("\n\nData read:\n\n");
-            /*for (ssize_t i = 0; i < readSize; i++) {
-                printf("%02X ", (unsigned char)bytes[i]);
-            }*/
-
             char data2[FRAME_SIZE - 3 - strlen("FILE_DATA")]; // -3 por 'type' y 'header_length'.
-            snprintf(data2, sizeof(data2), "%s", bytes);
+            //snprintf(data2, sizeof(data2), "%s", bytes);
+memcpy(data2, bytes, data_capacity);
 
 
             char frame_buffer[FRAME_SIZE] = {0};
             fillFrame(frame_buffer,0x04,"FILE_DATA",data2);
 
             send(socket, frame_buffer, 256, 0);//Bowman send poole
+            free(bytes);
 
-             /*for (ssize_t i = 0; i < readSize; i++) {
-                printf("%c", bytes[i]);
-            } */
-        
-            if (readSize == 0)            // Check if EOF
-            {
-                break;
-            }
-            else
-            {
-                readSize = read(fd_file, bytes,sizeof(char) * data_capacity);
-            }
+            char *bytes;
+            bytes = (char *)malloc(sizeof(char) * data_capacity);
+            readSize = read(fd_file, bytes,sizeof(char) * data_capacity);
+            
         }
-        free(bytes);
+                free(bytes);
+
     }
     close(fd_file);
 }

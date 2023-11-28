@@ -228,8 +228,9 @@ int receiveFileData(int sockfd, int fd_song) {
         if (errorSocketOrNot >= 0) {
             size_t data_capacity = FRAME_SIZE - 3 - incoming_frame.header_length;
 
-            if (strcmp(incoming_frame.header, "FILE_DATA") == 0) {
-                print_frame(&incoming_frame);
+            if (incoming_frame.header_length >= strlen("FILE_DATA") &&
+                strncmp(incoming_frame.header, "FILE_DATA", strlen("FILE_DATA")) == 0) {       
+                            //print_frame(&incoming_frame);
                 ssize_t bytes_written = write(fd_song, incoming_frame.data, data_capacity/*strlen(incoming_frame.data)*/ /*244*/);
                 //           printf("Total bytes written: %zd\n", bytes_written);
 
@@ -239,9 +240,7 @@ int receiveFileData(int sockfd, int fd_song) {
                     free(incoming_frame.data);
                     return -1;
                 }
-               /* for (size_t i = 0; i < strlen(incoming_frame.data); i++) {
-                printf("%c", incoming_frame.data[i]);
-            } */
+        
             } else {
                 fileCompletat = 1;
             }
@@ -285,7 +284,7 @@ void download(int *connectedOrNot, char *commandInput){
         if (receiveFileData(sockfd_poole, fd_song) == 0) {
             printF("sha fet tota la descarga\n");
         }
-        
+        close(fd_song);
         free(incoming_frame.header);
         free(incoming_frame.data);
        

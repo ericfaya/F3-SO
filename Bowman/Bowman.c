@@ -315,12 +315,24 @@ void *downloadSongs(void *arg) {
     sprintf(songPath, "%s.mp3", downloadInfo->fileName);
     int fd_song = open(songPath, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 
-    if (receiveFileData(sockfd_poole, fd_song) == 0) {
-        //printF("Descarga completada\n");
-    }
+    if (fd_song == -1) {
+        perror("Error opening file for download");
+        // Manejar error de apertura de archivo
+    } else {
+        if (receiveFileData(sockfd_poole, fd_song) == 0) {
+            printF("Descarga completada\n");
 
-    close(fd_song);
-    
+            // Verificación MD5SUM después de la descarga
+            char *calculated_md5 = calculateMD5(songPath);
+            if (calculated_md5 != NULL && strcmp(downloadInfo->md5sum, calculated_md5) == 0) {
+                printF("Verificación MD5 exitosa\n");
+            } else {
+                printF("Error en la verificación MD5\n");
+            }
+            free(calculated_md5);
+        }
+        close(fd_song);
+    }
     
     free(downloadInfo->fileName);
     free(downloadInfo->md5sum);
@@ -329,6 +341,8 @@ void *downloadSongs(void *arg) {
     pthread_exit(NULL);
     return NULL;
 }
+
+
 
 
 void download(int *connectedOrNot, char *commandInput){
@@ -355,16 +369,16 @@ void download(int *connectedOrNot, char *commandInput){
         receive_frame(sockfd_poole, &file_info_frame);
         FileInfo downloadInfo;
         
-        char song_path[PATH_MAX];
-        sprintf(song_path, "%s.mp3", song_name);
-        int fd_song = open(song_path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+        FileInfo *threadInfo = malloc(sizeof(FileInfo));
+        *threadInfo = downloadInfo;
 
-
-        printF("Descarga completada\n");
+       
+        threadInfo->fileName = strdup(downloadInfo.fileName);
+        threadInfo->md5sum = strdup(downloadInfo.md5sum);
 
         pthread_t t1;
         //void *res;
-        int s;
+       
         int s = pthread_create(&t1, NULL, downloadSongs, (void *)&downloadInfo);
         if (s != 0){
             printF("pthread_create\n");
@@ -382,13 +396,7 @@ void download(int *connectedOrNot, char *commandInput){
         }
         close(fd_song);*/
 
-        // Verificar MD5SUM
-        char *original_md5 = extractMD5SUM(file_info_frame.data);
-        if (verifyMD5SUM(song_path, original_md5) == 0) {
-            printF("Verificación MD5 exitosa\n");
-        } else {
-            printF("Error en la verificación MD5\n");
-        }
+    
 
         free(file_info_frame.header);
         free(file_info_frame.data);

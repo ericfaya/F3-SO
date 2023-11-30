@@ -250,7 +250,6 @@ int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_fr
         asprintf(&buffer,"New request – %s requires the list of playlists.\nSending playlist list to %s\n\n",incoming_frame->data, incoming_frame->data);  
         write(STDOUT_FILENO, buffer, strlen(buffer));   
         free(buffer);
-        sendSongListResponse(*newsock);
         sendPlayListResponse(*newsock);
     }
 
@@ -263,8 +262,6 @@ int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_fr
         asprintf(&buffer,"New request – %s wants to download %s\n Sending %s to %s\n\n", incoming_frame->data,song_name,song_name,incoming_frame->data);  
         write(STDOUT_FILENO, buffer, strlen(buffer));   
         free(buffer);
-        sendSongListResponse(*newsock);
-        sendPlayListResponse(*newsock);
 
     
     int found = findSongInDirectory("Files/floyd", song_name, path_found);

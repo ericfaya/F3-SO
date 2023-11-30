@@ -103,11 +103,11 @@ int receive_frame(int sockfd, Frame *frame) {
     memcpy(frame->data, &buffer[3 + frame->header_length], data_length);
     frame->data[data_length] = '\0'; // Null-terminar el data
 
-   // printf("\n");
-    /*printf("Received frame type: 0x%02X\n", frame->type);
+    printf("\n");
+    printf("Received frame type: 0x%02X\n", frame->type);
     printf("Received frame header length: %u\n", frame->header_length);
     printf("Received frame header: %s\n", frame->header);
-    printf("'%s'\n", frame->data);*/
+    printf("'%s'\n", frame->data);
    
     return 0;
 }

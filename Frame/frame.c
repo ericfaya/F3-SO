@@ -107,7 +107,7 @@ int receive_frame(int sockfd, Frame *frame) {
     /*printf("Received frame type: 0x%02X\n", frame->type);
     printf("Received frame header length: %u\n", frame->header_length);
     printf("Received frame header: %s\n", frame->header);
-    printf("Received frame data: %s\n\n", frame->data);*/
+    printf("'%s'\n", frame->data);*/
    
     return 0;
 }

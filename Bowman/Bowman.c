@@ -30,7 +30,7 @@ char *extractMD5SUM(const char *file_info) {
 char *calculateMD5(const char *filename) {
     char *command = (char *)malloc(strlen(filename) + 10);
     sprintf(command, "md5sum \"%s\"", filename);//el filename es el .mp3
-
+//todo cambiar 
     FILE *stream = popen(command, "r"); // executem comanda en mode lectura desde aqui 
     free(command);
 
@@ -213,12 +213,12 @@ int connectBowman(char *tokens[MAX_TOKENS]){
     return 1; 
 }
 
+
 void logout(){
     logoutDiscovery(); //A tokens li envia el nom del servidor
     
     char frame_buffer[FRAME_SIZE] = {0};
     fillFrame(frame_buffer,0x02,"EXIT",bowmaneta[0].fullName);
-
 
     send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
     
@@ -241,12 +241,17 @@ void logout(){
 int receiveFileData(int sockfd, int fd_song) {
     Frame incoming_frame;
     int fileCompletat = 0;
-
+  char *tokens[MAX_TOKENS];
+                splitFrame(&incoming_frame,tokens);
+                for (int i = 0; tokens[i] != NULL; ++i) {
+                    printf("Token %d: %s\n", i + 1, tokens[i]);
+                }
     while (!fileCompletat) {
         int errorSocketOrNot = receive_frame(sockfd, &incoming_frame);
         if (errorSocketOrNot >= 0) {
             if (strcmp(incoming_frame.header, "FILE_DATA") == 0) {
                 size_t data_length = FRAME_SIZE - 3 - incoming_frame.header_length;
+              
                 ssize_t bytes_written = write(fd_song, incoming_frame.data, data_length);
                 
                 if (bytes_written == -1) {
@@ -491,7 +496,7 @@ int main(int argc, char *argv[]){
     }
 
     printInfo(bowmaneta);
-        signal(SIGINT, kctrlc);
+    signal(SIGINT, kctrlc);
 
     int exitOrNot=1;
      // int sockfd_poole=0;

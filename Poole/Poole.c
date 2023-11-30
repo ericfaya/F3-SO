@@ -9,7 +9,7 @@ int clientrada_sockets[10];
 fd_set master_set;
 
 
-void sendFileData(int socket, const char *file_path) {
+void sendFileData(int socket, const char *file_path,int idNumRandom) {
     int fd_file = open(file_path, O_RDONLY);
     if (fd_file == -1) {
         perror("Error opening file");
@@ -26,8 +26,11 @@ void sendFileData(int socket, const char *file_path) {
         close(fd_file);
         return;
     }
+    *(int *)bytes = idNumRandom;//bytes[0]=idNumRandom;
+    bytes[sizeof(int)] = '&';//bytes[1]='&';
 
-    ssize_t readSize;
+    printf("%d",idNumRandom);
+    ssize_t readSize;//TODO enviar numRandom
     while ((readSize = read(fd_file, bytes, data_capacity)) > 0) {
         char frame_buffer[FRAME_SIZE] = {0};
         char header_copy[HEADER_MAX_SIZE]; // Define HEADER_MAX_SIZE según la longitud máxima esperada para un encabezado
@@ -287,14 +290,15 @@ int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_fr
             return -1;
         }
 
-        snprintf(data_info, data_info_size, "%s&%d&%s", song_name, file_size, md5sum);        //trama pel primer frame, el del md5
+        int idNumRandom = 0 + rand() % 999;
+        snprintf(data_info, data_info_size, "%s&%d&%s&%d", song_name, file_size, md5sum,idNumRandom);        //trama pel primer frame, el del md5
 
         char frame_buffer[FRAME_SIZE];        // Enviar la trama
 
         fillFrame(frame_buffer, 0x04, "NEW_FILE", data_info);
         send(*newsock, frame_buffer, FRAME_SIZE, 0); //aquest l'envia bé
           
-        sendFileData(*newsock, path_found);
+        sendFileData(*newsock, path_found,idNumRandom);
 
         free(data_info); 
         free(md5sum);    

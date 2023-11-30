@@ -32,6 +32,13 @@ typedef struct
     int portDiscovery;
 } Bowman;
 
+typedef struct {
+    char *fileName;
+    int fileSize;
+    char *md5sum;
+    int songId;
+} FileInfo;
+
 
 void freeMemory(Bowman* bowmaneta,int numUsuaris);
 void printInfo(Bowman* bowmaneta);

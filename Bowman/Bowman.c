@@ -51,6 +51,41 @@ char *calculateMD5(const char *filename) {
     return md5sum; //shaura d lliberar memoria
 }
 
+int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
+    char *token, *dataCopy;
+
+    dataCopy = strdup(file_info_frame->data);
+    if (dataCopy == NULL) {
+        perror("strdup failed");
+        return -1;
+    }
+
+    // Extracción de FileName
+    token = strtok(dataCopy, "&");
+    if (token == NULL) {
+         free(dataCopy); return -1; }
+    downloadInfo->fileName = strdup(token);
+
+    token = strtok(NULL, "&");
+    if (token == NULL) { 
+        free(dataCopy); return -1; }
+    downloadInfo->fileSize = atoi(token);
+
+    token = strtok(NULL, "&");
+    if (token == NULL) {
+         free(dataCopy); return -1; }
+    downloadInfo->md5sum = strdup(token);
+
+    token = strtok(NULL, "&");
+    if (token == NULL) {
+         free(dataCopy); return -1; }
+    downloadInfo->songId = atoi(token);
+
+    free(dataCopy);
+    return 0;
+}
+
+
 int verifyMD5SUM(const char *file_path, const char *expected_md5) {
     char *actual_md5 = calculateMD5(file_path);
     if (actual_md5 == NULL) {
@@ -273,18 +308,28 @@ int receiveFileData(int sockfd, int fd_song) {
     return 0;
 }
 
-void *downloadSongs  (void *arg){
+void *downloadSongs(void *arg) {
+    FileInfo *downloadInfo = (FileInfo *)arg;
     
-    int fd_song = *((int *)arg);  // Cast and dereference the argument
+    char songPath[PATH_MAX];
+    sprintf(songPath, "%s.mp3", downloadInfo->fileName);
+    int fd_song = open(songPath, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+
     if (receiveFileData(sockfd_poole, fd_song) == 0) {
         //printF("Descarga completada\n");
     }
+
     close(fd_song);
+    
+    
+    free(downloadInfo->fileName);
+    free(downloadInfo->md5sum);
+    free(downloadInfo);
 
-    pthread_exit(NULL); // Terminar el hilo
-
+    pthread_exit(NULL);
     return NULL;
 }
+
 
 void download(int *connectedOrNot, char *commandInput){
     printF("Download started!\n");
@@ -308,6 +353,7 @@ void download(int *connectedOrNot, char *commandInput){
         // Recibir el frame de información del archivo
         Frame file_info_frame;
         receive_frame(sockfd_poole, &file_info_frame);
+        FileInfo downloadInfo;
         
         char song_path[PATH_MAX];
         sprintf(song_path, "%s.mp3", song_name);
@@ -319,7 +365,7 @@ void download(int *connectedOrNot, char *commandInput){
         pthread_t t1;
         //void *res;
         int s;
-        s = pthread_create (&t1, NULL, downloadSongs, (void *)&fd_song); //TODO ENVIAR MD6SUM
+        int s = pthread_create(&t1, NULL, downloadSongs, (void *)&downloadInfo);
         if (s != 0){
             printF("pthread_create\n");
             exit (EXIT_FAILURE);

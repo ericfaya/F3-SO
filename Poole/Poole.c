@@ -9,49 +9,7 @@ int clientrada_sockets[10];
 fd_set master_set;
 
 
-void sendFileData(int socket, const char *file_path,int idNumRandom) {
-    int fd_file = open(file_path, O_RDONLY);
-    if (fd_file == -1) {
-        perror("Error opening file");
-        return;
-    }
 
-    const char *header = "FILE_DATA";
-    size_t header_len = strlen(header);
-    size_t data_capacity = FRAME_SIZE - 3 - header_len;
-
-    char *bytes = (char *)malloc(data_capacity);
-    if (!bytes) {
-        perror("Failed to allocate memory for bytes");
-        close(fd_file);
-        return;
-    }
-    *(int *)bytes = idNumRandom;//bytes[0]=idNumRandom;
-    bytes[sizeof(int)] = '&';//bytes[1]='&';
-
-    printf("%d",idNumRandom);
-    ssize_t readSize;//TODO enviar numRandom
-    while ((readSize = read(fd_file, bytes, data_capacity)) > 0) {
-        char frame_buffer[FRAME_SIZE] = {0};
-        char header_copy[HEADER_MAX_SIZE]; // Define HEADER_MAX_SIZE según la longitud máxima esperada para un encabezado
-        strcpy(header_copy, header);
-        fillFrame2(frame_buffer, 0x04, header_copy, bytes, readSize);
-
-        send(socket, frame_buffer, FRAME_SIZE, 0);
-    }
-
-    if (readSize == -1) {
-        perror("Error reading from the file");
-    }
-
-    // Enviar el frame final para indicar el fin del archivo
-    char final_frame_buffer[FRAME_SIZE] = {0};
-    fillFrame2(final_frame_buffer, 0x04, "FILE_END", "", 0);
-    send(socket, final_frame_buffer, FRAME_SIZE, 0);
-
-    free(bytes);
-    close(fd_file);
-}
 
 
 
@@ -218,6 +176,59 @@ void sendPlayListResponse(int socket) {
    
     return (void *) arg;
 }*/
+
+void sendFileData(int socket, const char *file_path, int idNumRandom) {
+    int fd_file = open(file_path, O_RDONLY);
+    if (fd_file == -1) {
+        perror("Error opening file");
+        return;
+    }
+
+    char *header = "FILE_DATA";
+    size_t header_len = strlen(header);
+    size_t data_capacity = FRAME_SIZE - 3 - header_len - sizeof(int) - 1; // Espacio para ID y '&'
+
+    char *buffer = (char *)malloc(data_capacity);
+    if (!buffer) {
+        perror("Failed to allocate memory for buffer");
+        close(fd_file);
+        return;
+    }
+
+    ssize_t totalBytesSent = 0;
+    ssize_t readSize;
+    while ((readSize = read(fd_file, buffer, data_capacity)) > 0) {
+        char frame_buffer[FRAME_SIZE] = {0};
+
+        // Preparar el frame con ID y datos
+        *(int *)(frame_buffer + 3 + header_len) = idNumRandom;
+        frame_buffer[3 + header_len + sizeof(int)] = '&';
+        memcpy(frame_buffer + 3 + header_len + sizeof(int) + 1, buffer, readSize);
+
+        // Enviar el frame
+        ssize_t frameDataSize = readSize + sizeof(int) + 1; // Tamaño de los datos en el frame
+        fillFrame2(frame_buffer, 0x04, header, frame_buffer + 3 + header_len, frameDataSize);
+        send(socket, frame_buffer, FRAME_SIZE, 0);
+
+        // Mostrar bytes de datos enviados
+        totalBytesSent += readSize;
+        printf("Sent %zd bytes of data in this frame, total data sent: %zd bytes\n", readSize, totalBytesSent);
+    }
+
+    if (readSize == -1) {
+        perror("Error reading from the file");
+    }
+
+    // Enviar el frame final para indicar el fin del archivo
+    char final_frame_buffer[FRAME_SIZE] = {0};
+    fillFrame2(final_frame_buffer, 0x04, "FILE_END", "", 0);
+    send(socket, final_frame_buffer, FRAME_SIZE, 0);
+
+    free(buffer);
+    close(fd_file);
+}
+
+
 
 
 int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_frame) {

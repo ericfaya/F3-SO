@@ -286,10 +286,8 @@ int receiveFileData(int sockfd, int fd_song, ssize_t fileSize) {
             }
 
             totalBytesReceived += bytes_written;
-            fprintf(stderr, "Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, totalBytesReceived);
-        } else if (strcmp(incoming_frame.header, "FILE_END") == 0) {
-            fileCompleted = 1;
-        }
+            //fprintf(stderr, "Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, totalBytesReceived);
+        } 
 
         free(incoming_frame.header);
         free(incoming_frame.data);
@@ -299,16 +297,9 @@ int receiveFileData(int sockfd, int fd_song, ssize_t fileSize) {
     return (totalBytesReceived == fileSize) ? 0 : -1;
 }
 
-
-
-
-
-
-
 void *downloadSongs(void *arg) {
     FileInfo *downloadInfo = (FileInfo *)arg;
-    
-    
+     
     printf("Attempting to download: %s\n", downloadInfo->fileName);
 
     char songPath[PATH_MAX];
@@ -346,11 +337,6 @@ void *downloadSongs(void *arg) {
     return NULL;
 }
 
-
-
-
-
-
 void download(int *connectedOrNot, char *commandInput) {
     printf("Download started!\n");
     if (*connectedOrNot == 1) {
@@ -367,8 +353,9 @@ void download(int *connectedOrNot, char *commandInput) {
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);
 
      //info arxiu
-        Frame file_info_frame = {0};
+        Frame file_info_frame ;
         receive_frame(sockfd_poole, &file_info_frame);
+        print_frame(&file_info_frame);
 
         FileInfo downloadInfo;
         fillDownloadInfo(&file_info_frame, &downloadInfo); 
@@ -383,7 +370,6 @@ void download(int *connectedOrNot, char *commandInput) {
             free(threadInfo);
             exit(EXIT_FAILURE);
         }
-
        
         pthread_join(t1, NULL);
 

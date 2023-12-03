@@ -212,7 +212,7 @@ void sendFileData(int socket, const char *file_path, int idNumRandom) {
 
         // Mostrar bytes de datos enviados
         totalBytesSent += readSize;
-        printf("Sent %zd bytes of data in this frame, total data sent: %zd bytes\n", readSize, totalBytesSent);
+        //printf("Sent %zd bytes of data in this frame, total data sent: %zd bytes\n", readSize, totalBytesSent);
     }
 
     if (readSize == -1) {
@@ -220,16 +220,13 @@ void sendFileData(int socket, const char *file_path, int idNumRandom) {
     }
 
     // Enviar el frame final para indicar el fin del archivo
-    char final_frame_buffer[FRAME_SIZE] = {0};
-    fillFrame2(final_frame_buffer, 0x04, "FILE_END", "", 0);
-    send(socket, final_frame_buffer, FRAME_SIZE, 0);
+   // char final_frame_buffer[FRAME_SIZE] = {0};
+    //fillFrame2(final_frame_buffer, 0x04, "FILE_END", "", 0);
+    //send(socket, final_frame_buffer, FRAME_SIZE, 0);
 
     free(buffer);
     close(fd_file);
 }
-
-
-
 
 int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_frame) {
      if (errorSocketOrNot < 0) {
@@ -274,61 +271,41 @@ int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_fr
         write(STDOUT_FILENO, buffer, strlen(buffer));   
         free(buffer);
 
-    
-    int found = findSongInDirectory("Files/floyd", song_name, path_found);
-    if (found) {
-        
-        struct stat st;
-        if (stat(path_found, &st) == -1) {
-            perror("Error al obtener información del archivo");
-            return -1;
-        }
-        int file_size = st.st_size;
+        int found = findSongInDirectory("Files/floyd", song_name, path_found);
+        if (found) {
+            struct stat st;
+            if (stat(path_found, &st) == -1) {
+                perror("Error al obtener información del archivo");
+                return -1;
+            }
+            int file_size = st.st_size;
 
-        char *md5sum = calculateMD5(path_found);        // Calcular el MD5SUM
-        if (md5sum == NULL) {
-            return -1;
-        }
+            char *md5sum = calculateMD5(path_found);        // Calcular el MD5SUM
+            if (md5sum == NULL) {
+                return -1;
+            }
 
-        int data_info_size = strlen(song_name) + 20 + 32 + 2;         // calculem tamany de data amb els 3 components
-        char *data_info = malloc(data_info_size);
-        if (data_info == NULL) {
-            perror("No se pudo asignar memoria para data_info");
-            free(md5sum);
-            return -1;
-        }
+            int data_info_size = strlen(song_name) + 20 + 32 + 2;         // calculem tamany de data amb els 3 components
+            char *data_info = malloc(data_info_size);
+            if (data_info == NULL) {
+                perror("No se pudo asignar memoria para data_info");
+                free(md5sum);
+                return -1;
+            }
 
-        int idNumRandom = 0 + rand() % 999;
-        snprintf(data_info, data_info_size, "%s&%d&%s&%d", song_name, file_size, md5sum,idNumRandom);        //trama pel primer frame, el del md5
+            int idNumRandom = 0 + rand() % 999;
+            snprintf(data_info, data_info_size, "%s&%d&%s&%d", song_name, file_size, md5sum,idNumRandom);        //trama pel primer frame, el del md5
 
-        char frame_buffer[FRAME_SIZE];        // Enviar la trama
+            char frame_buffer[FRAME_SIZE];        // Enviar la trama
 
-        fillFrame(frame_buffer, 0x04, "NEW_FILE", data_info);
-        send(*newsock, frame_buffer, FRAME_SIZE, 0); //aquest l'envia bé
-          
-        sendFileData(*newsock, path_found,idNumRandom);
+            fillFrame(frame_buffer, 0x04, "NEW_FILE", data_info);
+            send(*newsock, frame_buffer, FRAME_SIZE, 0); //aquest l'envia bé
+            
+            sendFileData(*newsock, path_found,idNumRandom);
 
-        free(data_info); 
-        free(md5sum);    
-    } else {
-       
-    }
-
-        /*
-       pthread_t t1;
-        void *res;
-        int s;
-        s = pthread_create (&t1, NULL, downloadSongs, incoming_frame->data); //TODO ENVIAR MD6SUM
-        if (s != 0){
-            printf("pthread_create\n");
-            exit (EXIT_FAILURE);
+            free(data_info); 
+            free(md5sum);    
         } 
-        s = pthread_join (t1, &res);
-        if (s != 0){
-            printf("pthread_join\n");
-            exit (EXIT_FAILURE);
-        }
-        */
     }
     
 

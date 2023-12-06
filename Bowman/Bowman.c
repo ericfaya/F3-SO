@@ -7,31 +7,8 @@ char *tokens[MAX_TOKENS];
 int sockfd_poole;
 
 
-char *calculateMD5(const char *filename) {
-    char *command = (char *)malloc(strlen(filename) + 10);
-    sprintf(command, "md5sum \"%s\"", filename);//el filename es el .mp3
-//todo cambiar 
-    FILE *stream = popen(command, "r"); // executem comanda en mode lectura desde aqui 
-    free(command);
-
-    if (stream == NULL) {
-        perror("popen");
-        return NULL;
-    }
-
-    char *md5sum = (char *)malloc(33); // es un hash de 32 caracters mes \0
-    if (fscanf(stream, "%32s", md5sum) != 1) {
-        perror("fscanf");
-        free(md5sum);
-        pclose(stream);
-        return NULL;
-    }
-
-    pclose(stream);
-    return md5sum; //shaura d lliberar memoria
-}
-
 int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
+    printf("Iniciando fillDownloadInfo...\n");
     char *token, *dataCopy;
 
     dataCopy = strdup(file_info_frame->data);
@@ -39,43 +16,51 @@ int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
         perror("strdup failed");
         return -1;
     }
+    printf("Data copiada: %s\n", dataCopy);
 
     // Extracción de FileName
     token = strtok(dataCopy, "&");
     if (token == NULL) {
-         free(dataCopy); return -1; }
+        free(dataCopy);
+        return -1;
+    }
+    printf("FileName extraído: %s\n", token);
     downloadInfo->fileName = strdup(token);
 
+    // Extracción de fileSize
     token = strtok(NULL, "&");
     if (token == NULL) { 
-        free(dataCopy); return -1; }
+        free(downloadInfo->fileName);
+        free(dataCopy);
+        return -1;
+    }
+    printf("FileSize extraído: %s\n", token);
     downloadInfo->fileSize = atoi(token);
 
+    // Extracción de md5sum
     token = strtok(NULL, "&");
     if (token == NULL) {
-         free(dataCopy); return -1; }
+        free(downloadInfo->fileName);
+        free(dataCopy);
+        return -1;
+    }
+    printf("MD5SUM extraído: %s\n", token);
     downloadInfo->md5sum = strdup(token);
 
+    // Extracción de songId
     token = strtok(NULL, "&");
     if (token == NULL) {
-         free(dataCopy); return -1; }
+        free(downloadInfo->md5sum);
+        free(downloadInfo->fileName);
+        free(dataCopy);
+        return -1;
+    }
+    printf("SongId extraído: %s\n", token);
     downloadInfo->songId = atoi(token);
 
     free(dataCopy);
+    printf("fillDownloadInfo completado correctamente.\n");
     return 0;
-}
-
-
-int verifyMD5SUM(const char *file_path, const char *expected_md5) {
-    char *actual_md5 = calculateMD5(file_path);
-    if (actual_md5 == NULL) {
-        return 1; 
-    }
-
-    int result = strcmp(actual_md5, expected_md5);
-    free(actual_md5);
-
-    return (result == 0) ? 0 : 1; //0 iguals, 1 diferents
 }
 
 
@@ -258,6 +243,8 @@ int receiveFileData(int sockfd, int fd_song, ssize_t fileSize) {
     int fileCompleted = 0;
     ssize_t totalBytesReceived = 0;
 
+    printf("Inicio de receiveFileData. fileSize esperado: %zd bytes\n", fileSize);
+
     while (!fileCompleted && totalBytesReceived < fileSize) {
         incoming_frame.header = NULL;
         incoming_frame.data = NULL;
@@ -267,6 +254,8 @@ int receiveFileData(int sockfd, int fd_song, ssize_t fileSize) {
             perror("Error receiving frame");
             break;
         }
+
+        printf("Frame recibido. Header: %s, Data size: %zd\n", incoming_frame.header, strlen(incoming_frame.data));
 
         if (strcmp(incoming_frame.header, "FILE_DATA") == 0) {
             int idAndSeparatorLength = sizeof(int) + 1;
@@ -286,21 +275,21 @@ int receiveFileData(int sockfd, int fd_song, ssize_t fileSize) {
             }
 
             totalBytesReceived += bytes_written;
-            //fprintf(stderr, "Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, totalBytesReceived);
+            printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, totalBytesReceived);
         } 
 
         free(incoming_frame.header);
         free(incoming_frame.data);
     }
 
-    fprintf(stderr, "Total data received: %zd bytes\n", totalBytesReceived);
+    printf("Total data received: %zd bytes\n", totalBytesReceived);
     return (totalBytesReceived == fileSize) ? 0 : -1;
 }
 
+
 void *downloadSongs(void *arg) {
     FileInfo *downloadInfo = (FileInfo *)arg;
-     
-    printf("Attempting to download: %s\n", downloadInfo->fileName);
+    printf("Iniciando downloadSongs. Descargando: %s, fileSize: %d\n", downloadInfo->fileName, downloadInfo->fileSize);
 
     char songPath[PATH_MAX];
     sprintf(songPath, "%s.mp3", downloadInfo->fileName);
@@ -330,14 +319,18 @@ void *downloadSongs(void *arg) {
         printf("Download failed\n");  
     }
     close(fd_song);
+
     free(downloadInfo->fileName);
     free(downloadInfo->md5sum);
     free(downloadInfo);
+    printf("Finalizando downloadSongs.\n");
     pthread_exit(NULL);
     return NULL;
 }
 
+
 void download(int *connectedOrNot, char *commandInput) {
+    printf("Inicio de download.\n");
     printf("Download started!\n");
     if (*connectedOrNot == 1) {
         
@@ -352,35 +345,46 @@ void download(int *connectedOrNot, char *commandInput) {
         fillFrame(frame_buffer, 0x03, "DOWNLOAD_SONG", song_name);
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);
 
-     //info arxiu
-        Frame file_info_frame ;
+        // Recibir información del archivo
+        Frame file_info_frame;
         receive_frame(sockfd_poole, &file_info_frame);
         print_frame(&file_info_frame);
 
         FileInfo downloadInfo;
-        fillDownloadInfo(&file_info_frame, &downloadInfo); 
+        if (fillDownloadInfo(&file_info_frame, &downloadInfo) != 0) {
+            printf("Error en fillDownloadInfo.\n");
+            free(file_info_frame.header);
+            free(file_info_frame.data);
+            return;
+        }
 
-        
+        printf("Preparando para crear el hilo downloadSongs.\n");
         FileInfo *threadInfo = malloc(sizeof(FileInfo));
         *threadInfo = downloadInfo;
+
         pthread_t t1;
         int s = pthread_create(&t1, NULL, downloadSongs, threadInfo);
         if (s != 0) {
             printf("pthread_create failed\n");
+            free(threadInfo->fileName);
+            free(threadInfo->md5sum);
             free(threadInfo);
+            free(file_info_frame.header);
+            free(file_info_frame.data);
             exit(EXIT_FAILURE);
         }
-       
+
         pthread_join(t1, NULL);
 
-    
-        free(threadInfo);
         free(file_info_frame.header);
         free(file_info_frame.data);
+        printf("Fin de download.\n");
     } else {
         printf("Not connected to HAL 9000\n");
     }
 }
+
+
 
 
 void listSongs(int *connectedOrNot){//TODO F2

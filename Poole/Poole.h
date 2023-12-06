@@ -21,7 +21,9 @@
 #include <sys/types.h>
 #include <limits.h>
 
-#include "Frame.h"
+#include "frame.h"
+#include "md5functions.h"
+#include "dirfunctions.h"
 
 
 #define printF(x) write(1, x, strlen(x))
@@ -37,7 +39,7 @@ typedef struct
     int portPoole;
 } Poole;
 
-void listSongs(char *directory, char *result);
+
 void sendSongListResponse(int socket);
 int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_frame) ;
 void enviarAcknowledge(int newsock,int errorSocketOrNot);

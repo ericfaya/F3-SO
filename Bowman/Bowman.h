@@ -17,7 +17,8 @@
 #include <ctype.h>
 #include <limits.h>
 #include <strings.h> 
-#include "Frame.h"
+#include "frame.h"
+#include "md5functions.h"
 
 
 

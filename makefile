@@ -2,25 +2,38 @@ CC = gcc
 CFLAGS = -Wall -Wextra -g
 LIBS = -lpthread
 
+# Object files
+FRAME_O = Libraries/frame.o
+DIRFUNC_O = Libraries/dirfunctions.o
+MD5FUNC_O = Libraries/md5functions.o
+
 # Define all targets
 all: bowman poole discovery
 
 # Frame object file compilation
-frame.o: Frame/Frame.c Frame/Frame.h
-	$(CC) $(CFLAGS) -c Frame/Frame.c -o Frame/Frame.o -I Frame
+$(FRAME_O): Libraries/frame.c Libraries/frame.h
+	$(CC) $(CFLAGS) -c $< -o $@ -I Libraries
+
+# dirfunctions object file compilation
+$(DIRFUNC_O): Libraries/dirfunctions.c Libraries/dirfunctions.h
+	$(CC) $(CFLAGS) -c $< -o $@ -I Libraries
+
+# md5functions object file compilation
+$(MD5FUNC_O): Libraries/md5functions.c Libraries/md5functions.h
+	$(CC) $(CFLAGS) -c $< -o $@ -I Libraries
 
 # Bowman compilation
-bowman: frame.o Bowman/Bowman.c Bowman/config.c
-	$(CC) $(CFLAGS) -o bowman Bowman/Bowman.c Bowman/config.c Frame/Frame.o $(LIBS) -I Bowman -I Frame
+bowman: $(FRAME_O) $(DIRFUNC_O) $(MD5FUNC_O) Bowman/Bowman.c Bowman/config.c
+	$(CC) $(CFLAGS) -o $@ Bowman/Bowman.c Bowman/config.c $(FRAME_O) $(DIRFUNC_O) $(MD5FUNC_O) $(LIBS) -I Bowman -I Libraries
 
 # Poole compilation
-poole: frame.o Poole/Poole.c Poole/config.c
-	$(CC) $(CFLAGS) -o poole Poole/Poole.c Poole/config.c Frame/Frame.o $(LIBS) -I Poole -I Frame
+poole: $(FRAME_O) $(DIRFUNC_O) $(MD5FUNC_O) Poole/Poole.c Poole/config.c
+	$(CC) $(CFLAGS) -o $@ Poole/Poole.c Poole/config.c $(FRAME_O) $(DIRFUNC_O) $(MD5FUNC_O) $(LIBS) -I Poole -I Libraries
 
 # Discovery compilation
-discovery: frame.o Discovery/Discovery.c Discovery/PooleList.c Discovery/config.c
-	$(CC) $(CFLAGS) -o discovery Discovery/Discovery.c Discovery/PooleList.c Discovery/config.c Frame/Frame.o $(LIBS) -I Discovery  -I Frame
+discovery: $(FRAME_O) $(DIRFUNC_O) $(MD5FUNC_O) Discovery/Discovery.c Discovery/PooleList.c Discovery/config.c
+	$(CC) $(CFLAGS) -o $@ Discovery/Discovery.c Discovery/PooleList.c Discovery/config.c $(FRAME_O) $(DIRFUNC_O) $(MD5FUNC_O) $(LIBS) -I Discovery -I Libraries
 
 # Clean compiled files and executables
 clean:
-	rm -f bowman poole discovery Frame/*.o
+	rm -f bowman poole discovery $(FRAME_O) $(DIRFUNC_O) $(MD5FUNC_O)

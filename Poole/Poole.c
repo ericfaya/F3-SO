@@ -9,9 +9,9 @@ int sockfd_poole_server;
 int max_sd ;
 fd_set master_set;
 
-int *clientrada_sockets; // Array dinámico para almacenar los sockets de los clientes.
-int capacity = 1; // Capacidad actual del array.
-pthread_mutex_t clientrada_sockets_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex para la sincronización del array.
+int *clientrada_sockets; // Array dinamic per sockets clients (de moment no lhe ficat)
+int capacity = 1; // Capacitat inicial
+pthread_mutex_t clientrada_sockets_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex per larray
 
 
 
@@ -218,34 +218,32 @@ void *clientHandler(void *args) {
     int clientSocket = threadArgs->socket;
     free(threadArgs);
 
-    printf("Debug: Thread iniciado para socket %d...\n", clientSocket);
+    printf("Debug: Thread iniciat per socket %d...\n", clientSocket);
 
     while (1) {
         Frame incoming_frame;
         int errorSocketOrNot = receive_frame(clientSocket, &incoming_frame);
 
         if (errorSocketOrNot < 0) {
-            // Manejar error real
             printf("Debug: Error real en receive_frame\n");
             break;
         } else if (errorSocketOrNot == 0) {
-            // Manejar cierre de conexión
-            printf("Debug: Cliente cerró la conexión\n");
+            printf("Debug: Client tanca la conexio\n");
             break;
         }
-        printf("Debug: Procesando datos en clientHandler para socket %d\n", clientSocket);
+        printf("Debug: Processant dades de client per socket: %d\n", clientSocket);
         int exitOrNot = handleBowmanConnection(&clientSocket, errorSocketOrNot, &incoming_frame);
 
 
         if (exitOrNot == -1) {
-            printf("Debug: Cliente solicita cierre de conexión\n");
+            printf("Debug: Cliente solicita tenca cpnexio\n");
             break;
         }
     }
 
-    printf("Debug: Cerrando conexión con socket %d\n", clientSocket);
+    printf("Debug: tanquem socket %d\n", clientSocket);
     close(clientSocket);
-    printf("Debug: Thread finalizado para socket %d\n", clientSocket);
+    printf("Debug: Thread finalitzat para socket %d\n", clientSocket);
     pthread_exit(NULL);
 }
 
@@ -278,13 +276,13 @@ void connectToBowman(Poole *poolete) {
     bowman_addr.sin_addr.s_addr = INADDR_ANY;
     bowman_addr.sin_port = htons(poole_port);
 
-    // Enlaza el socket a la dirección y puerto configurados.
+    
     if (bind(sockfd_poole_server, (struct sockaddr *)&bowman_addr, sizeof(bowman_addr)) < 0) {
         perror("Error binding socket");
         exit(EXIT_FAILURE);
     }
 
-    // Empieza a escuchar conexiones en el socket.
+    
     if (listen(sockfd_poole_server, 5) < 0) {
         perror("Error listening on socket");
         exit(EXIT_FAILURE);
@@ -292,21 +290,20 @@ void connectToBowman(Poole *poolete) {
 
     
 
-    // Bucle principal para aceptar nuevas conexiones y manejar las existentes.
     while (1) {
-        printf("Debug: Esperando nuevas conexiones...\n");
+        printf("Debug: Esperant noves conexions...\n");
 
         struct sockaddr_in c_addr;
         socklen_t c_len = sizeof(c_addr);
         int newsock = accept(sockfd_poole_server, (struct sockaddr *)&c_addr, &c_len);
         if (newsock < 0) {
             perror("accept");
-            continue;  // Si falla accept, continuar con el siguiente ciclo del bucle
+            continue;  
         }
 
-        printf("Debug: Nueva conexión aceptada. Socket: %d\n", newsock);
+        printf("Debug: nou accept. Socket: %d\n", newsock);
 
-        // Crear argumentos para el thread
+      
         ThreadArgs *args = malloc(sizeof(ThreadArgs));
         if (!args) {
             perror("Error al asignar memoria para args");
@@ -316,14 +313,14 @@ void connectToBowman(Poole *poolete) {
         args->socket = newsock;
  
 
-        // Crear un nuevo thread para manejar la conexión
+        //crear thread per gestionar connexio
         pthread_t thread_id;
         if (pthread_create(&thread_id, NULL, clientHandler, (void *)args) != 0) {
             perror("Error al crear thread");
             free(args);
             close(newsock);
         } else {
-            printf("Debug: Thread creado con éxito para socket %d\n", newsock);
+            printf("Debug: Thread creat pel socket %d\n", newsock);
         }
     }
     

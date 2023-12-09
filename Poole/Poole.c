@@ -1,12 +1,18 @@
 #include "Poole.h"
 #include "config.h"
 
+
+
 Poole *poolete;
 int numUsuaris;//Hem de saber cuantradas usuaris estan conectats en el servidor(discovery)
 int sockfd_poole_server;
 int max_sd ;
-int clientrada_sockets[10];
 fd_set master_set;
+
+int *clientrada_sockets; // Array dinámico para almacenar los sockets de los clientes.
+int capacity = 1; // Capacidad actual del array.
+pthread_mutex_t clientrada_sockets_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex para la sincronización del array.
+
 
 
 void sendSongListResponse(int socket) {
@@ -59,6 +65,7 @@ void sendFileData(int socket, const char *file_path, int idNumRandom) {
     ssize_t totalBytesSent = 0;
     ssize_t readSize;
     while ((readSize = read(fd_file, buffer, data_capacity)) > 0) {
+        usleep(1000);
         char frame_buffer[FRAME_SIZE] = {0};
 
         // Preparar el frame con ID y datos
@@ -89,13 +96,36 @@ void sendFileData(int socket, const char *file_path, int idNumRandom) {
     close(fd_file);
 }
 
-int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_frame) {
-     if (errorSocketOrNot < 0) {
-        perror("Error");//aqui s'hauria dafegir lo del KO
-        close(*newsock);
+
+void enviarAcknowledge(int newsock,int errorSocketOrNot) {
+    char *header;
+    if(errorSocketOrNot==-1 ){
+        header = "[CON_KO]";
     }
+    else{
+        header = "CON_OK";
+    }
+    
+    char frame_buffer[FRAME_SIZE] = {0};
+    fillFrame(frame_buffer,0x01,header," ");
+    printf("Debug: Enviando ACK a Bowman...\n");
+    send(newsock, frame_buffer, 256, 0);//Bowman send poole
+    printf("Debug: ACK enviado a Bowman.\n");
+}
+
+int handleBowmanConnection(int *newsock, int errorSocketOrNot, Frame *incoming_frame) {
+    printf("Debug: handleBowmanConnection iniciado\n");
+
+    if (errorSocketOrNot < 0) {
+        perror("Error en handleBowmanConnection");
+        close(*newsock);
+        return -1;
+    }
+
+    printf("Debug: Trama recibida con header: %s\n", incoming_frame->header);
    
     if (strcmp(incoming_frame->header, "NEW_BOWMAN") == 0) { 
+        printf("Debug: Procesando trama con header: %s\n", incoming_frame->header);
         char *buffer;
         asprintf(&buffer,"New user connected: %s.\n\n...", incoming_frame->data);  
         write(STDOUT_FILENO, buffer, strlen(buffer));   
@@ -181,109 +211,126 @@ int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_fr
     return 0;
 }
 
-void enviarAcknowledge(int newsock,int errorSocketOrNot) {
-    char *header;
-    if(errorSocketOrNot==-1 ){
-        header = "[CON_KO]";
+
+
+void *clientHandler(void *args) {
+    ThreadArgs *threadArgs = (ThreadArgs *)args;
+    int clientSocket = threadArgs->socket;
+    free(threadArgs);
+
+    printf("Debug: Thread iniciado para socket %d...\n", clientSocket);
+
+    while (1) {
+        Frame incoming_frame;
+        int errorSocketOrNot = receive_frame(clientSocket, &incoming_frame);
+
+        if (errorSocketOrNot < 0) {
+            // Manejar error real
+            printf("Debug: Error real en receive_frame\n");
+            break;
+        } else if (errorSocketOrNot == 0) {
+            // Manejar cierre de conexión
+            printf("Debug: Cliente cerró la conexión\n");
+            break;
+        }
+        printf("Debug: Procesando datos en clientHandler para socket %d\n", clientSocket);
+        int exitOrNot = handleBowmanConnection(&clientSocket, errorSocketOrNot, &incoming_frame);
+
+
+        if (exitOrNot == -1) {
+            printf("Debug: Cliente solicita cierre de conexión\n");
+            break;
+        }
     }
-    else{
-        header = "CON_OK";
-    }
-    
-    char frame_buffer[FRAME_SIZE] = {0};
-    fillFrame(frame_buffer,0x01,header," ");
-        
-    send(newsock, frame_buffer, 256, 0);//Bowman send poole
+
+    printf("Debug: Cerrando conexión con socket %d\n", clientSocket);
+    close(clientSocket);
+    printf("Debug: Thread finalizado para socket %d\n", clientSocket);
+    pthread_exit(NULL);
 }
 
-void connectToBowman(Poole *poolete){
+
+
+
+
+
+
+void connectToBowman(Poole *poolete) {
     uint16_t poole_port = poolete[0].portPoole;
 
+    // Verifica que el puerto sea válido.
     if (poole_port < 1) {
         write(STDOUT_FILENO, "Error: Invalid port number(s)\n", sizeof("Error: Invalid port number(s)\n"));   
         exit(EXIT_FAILURE);
     }
-    sockfd_poole_server = socket(AF_INET, SOCK_STREAM, 0);
 
+    // Crea un socket para el servidor Poole.
+    int sockfd_poole_server = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd_poole_server < 0) {
         perror("Error creating sockets");
         exit(EXIT_FAILURE);
     }
 
-    struct sockaddr_in  bowman_addr;
-
+    // Configura la dirección y el puerto del servidor.
+    struct sockaddr_in bowman_addr;
     memset(&bowman_addr, 0, sizeof(bowman_addr));
     bowman_addr.sin_family = AF_INET;
     bowman_addr.sin_addr.s_addr = INADDR_ANY;
     bowman_addr.sin_port = htons(poole_port);
 
-    if (bind(sockfd_poole_server, (struct sockaddr *)&bowman_addr, sizeof(bowman_addr)) < 0) { // enllaçar socketss a direccions
+    // Enlaza el socket a la dirección y puerto configurados.
+    if (bind(sockfd_poole_server, (struct sockaddr *)&bowman_addr, sizeof(bowman_addr)) < 0) {
         perror("Error binding socket");
         exit(EXIT_FAILURE);
     }
-    if (listen(sockfd_poole_server, 5) < 0) {    // Escoltar en el  socket ,escoltar bowmans
+
+    // Empieza a escuchar conexiones en el socket.
+    if (listen(sockfd_poole_server, 5) < 0) {
         perror("Error listening on socket");
         exit(EXIT_FAILURE);
     }
-    /*fd_set master_set;*/
-    FD_ZERO(&master_set);
-    FD_SET(sockfd_poole_server, &master_set);
-    /*int   pel sigfnal ho hem de fer global*/ max_sd = sockfd_poole_server;
 
-/*  int clientrada_sockets[10];*/  
-    for (int i = 0; i < 10; i++) {
-        clientrada_sockets[i] = 0; 
-    }
- 
+    
+
+    // Bucle principal para aceptar nuevas conexiones y manejar las existentes.
     while (1) {
-        fd_set read_set = master_set;
-        if (select(max_sd + 1, &read_set, NULL, NULL, NULL) < 0) {
-            perror("select");
-            exit(EXIT_FAILURE);
-        }
-        if (FD_ISSET(sockfd_poole_server, &read_set)) {        // proximes noves connexions
-            struct sockaddr_in c_addr;
-            socklen_t c_len = sizeof(c_addr);
-            int newsock = accept(sockfd_poole_server, (struct sockaddr *)&c_addr, &c_len);
-            if (newsock < 0) {
-                perror("accept");
-                exit(EXIT_FAILURE);
-            }
-            FD_SET(newsock, &master_set);
+        printf("Debug: Esperando nuevas conexiones...\n");
 
-            for (int i = 0; i < max_sd; i++) {// afegir socket a l'array
-                if (clientrada_sockets[i] == 0) {
-                    clientrada_sockets[i]=newsock;  
-                    if (newsock > max_sd) {
-                        max_sd = newsock;
-                    }
-                    break;
-                }
-            }
+        struct sockaddr_in c_addr;
+        socklen_t c_len = sizeof(c_addr);
+        int newsock = accept(sockfd_poole_server, (struct sockaddr *)&c_addr, &c_len);
+        if (newsock < 0) {
+            perror("accept");
+            continue;  // Si falla accept, continuar con el siguiente ciclo del bucle
         }
 
-        for (int i = 0; i <= max_sd; ++i) {// sockets amb arrays ja afegits i creats
-            int sd = clientrada_sockets[i];
-            if (sd > 0 && FD_ISSET(sd, &read_set)) {
-                Frame incoming_poole_frame;
-                int errorSocketOrNot = receive_frame(sd, &incoming_poole_frame);
-                int exitOrNot=handleBowmanConnection(&sd, errorSocketOrNot,&incoming_poole_frame);
-                if (exitOrNot == -1) {
-                    close(sd);
-                    FD_CLR(sd, &master_set);
-                    clientrada_sockets[i] = 0;
-                }
+        printf("Debug: Nueva conexión aceptada. Socket: %d\n", newsock);
 
-                break;                
-                if (errorSocketOrNot <= 0) {
-                    close(sd);
-                    FD_CLR(sd, &master_set);
-                    clientrada_sockets[i] = 0;
-                }
-            }
+        // Crear argumentos para el thread
+        ThreadArgs *args = malloc(sizeof(ThreadArgs));
+        if (!args) {
+            perror("Error al asignar memoria para args");
+            close(newsock);
+            continue;
+        }
+        args->socket = newsock;
+ 
+
+        // Crear un nuevo thread para manejar la conexión
+        pthread_t thread_id;
+        if (pthread_create(&thread_id, NULL, clientHandler, (void *)args) != 0) {
+            perror("Error al crear thread");
+            free(args);
+            close(newsock);
+        } else {
+            printf("Debug: Thread creado con éxito para socket %d\n", newsock);
         }
     }
+    
+    // Libera los recursos al final.
+    free(clientrada_sockets);
     close(sockfd_poole_server);
+
 }
     
 void freeAndClose(Poole *poolete,int numUsuaris){ 

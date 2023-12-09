@@ -176,9 +176,16 @@ void connectToPoole(char *tokens[]) {
         close(sockfd_poole); //Per si acas
     }
     
-    send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
+    
+    printf("Debug: Enviando trama a Poole...\n");
+    send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);
+    printf("Debug: Trama enviada a Poole.\n");
+
     char info[256];
-    read(sockfd_poole, info, 256);//bowman recibe from poole
+    printf("Debug: Esperando respuesta de Poole...\n");
+    read(sockfd_poole, info, 256);
+    printf("Debug: Respuesta recibida de Poole. Contenido: %s\n", info);
+
     Frame frameAcknoledge;
     printaAcknowledge(info,&frameAcknoledge);
 

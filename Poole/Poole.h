@@ -29,6 +29,7 @@
 #define printF(x) write(1, x, strlen(x))
 #define MAX_FDS 10
 
+
 typedef struct
 {
     char *fullName;
@@ -38,6 +39,10 @@ typedef struct
     char *ipPoole;
     int portPoole;
 } Poole;
+
+typedef struct {
+    int socket; // Socket del cliente Bowman
+} ThreadArgs;
 
 
 void sendSongListResponse(int socket);

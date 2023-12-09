@@ -26,7 +26,7 @@ char *calculateMD5(const char *filename) {
         return NULL;
     }
 
-    if (pid == 0) { // Proceso hijo
+    if (pid == 0) { // Process fill
         close(pipefd[0]);
         if (dup2(pipefd[1], STDOUT_FILENO) == -1) {
             perror("dup2");
@@ -35,24 +35,24 @@ char *calculateMD5(const char *filename) {
         close(pipefd[1]);
         close(fd);
         execlp("md5sum", "md5sum", filename, NULL);
-        perror("execlp"); // execlp solo retorna si hay un error
+        perror("execlp"); // 
         exit(EXIT_FAILURE);
     }
 
-    // Proceso padre
+    // Process pare
     close(pipefd[1]);
     close(fd);
 
-    char buffer[128]; // Buffer para leer la salida de md5sum
+    char buffer[128]; // Buffer per llegir sortida del md5
     ssize_t bytes_read = read(pipefd[0], buffer, sizeof(buffer) - 1);
     if (bytes_read == -1) {
         perror("read");
         close(pipefd[0]);
         return NULL;
     }
-    buffer[bytes_read] = '\0'; // Asegurarse de que el buffer es una cadena válida
+    buffer[bytes_read] = '\0'; 
 
-    waitpid(pid, NULL, 0); // Esperar a que el hijo termine
+    waitpid(pid, NULL, 0); // esperem fill
     close(pipefd[0]);
 
     char *md5sum = (char *)malloc(33);

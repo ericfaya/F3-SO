@@ -8,15 +8,16 @@ int sockfd_poole;
 
 
 int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
-    //printf("Iniciando fillDownloadInfo...\n");
+    printf("Iniciando fillDownloadInfo...\n");
     char *token, *dataCopy;
 
     dataCopy = strdup(file_info_frame->data);
+
     if (dataCopy == NULL) {
         perror("strdup failed");
         return -1;
     }
-    //printf("Data copiada: %s\n", dataCopy);
+    printf("Data copiada: %s\n", dataCopy);
 
     // Extracción de FileName
     token = strtok(dataCopy, "&");
@@ -24,7 +25,7 @@ int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
         free(dataCopy);
         return -1;
     }
-    //printf("FileName extraído: %s\n", token);
+    printf("FileName extraído: %s\n", token);
     downloadInfo->fileName = strdup(token);
 
     // Extracción de fileSize
@@ -34,7 +35,7 @@ int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
         free(dataCopy);
         return -1;
     }
-    //printf("FileSize extraído: %s\n", token);
+    printf("FileSize extraído: %s\n", token);
     downloadInfo->fileSize = atoi(token);
 
     // Extracción de md5sum
@@ -44,7 +45,7 @@ int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
         free(dataCopy);
         return -1;
     }
-    //printf("MD5SUM extraído: %s\n", token);
+    printf("MD5SUM extraído: %s\n", token);
     downloadInfo->md5sum = strdup(token);
 
     // Extracción de songId
@@ -55,11 +56,11 @@ int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
         free(dataCopy);
         return -1;
     }
-    //printf("SongId extraído: %s\n", token);
+    printf("SongId extraído: %s\n", token);
     downloadInfo->songId = atoi(token);
 
     free(dataCopy);
-    //printf("fillDownloadInfo completado correctamente.\n");
+    printf("fillDownloadInfo completado correctamente.\n");
     return 0;
 }
 
@@ -115,7 +116,7 @@ int receiveFileData(int sockfd, int fd_song, ssize_t fileSize) {
 
 void *downloadSongs(void *arg) {
     FileInfo *downloadInfo = (FileInfo *)arg;
-  //  printf("Iniciando downloadSongs. Descargando: %s, fileSize: %d\n", downloadInfo->fileName, downloadInfo->fileSize);
+    printf("Iniciando downloadSongs. Descargando: %s, fileSize: %d\n", downloadInfo->fileName, downloadInfo->fileSize);
 
     char songPath[PATH_MAX];
     sprintf(songPath, "%s.mp3", downloadInfo->fileName);
@@ -149,7 +150,7 @@ void *downloadSongs(void *arg) {
     free(downloadInfo->fileName);
     free(downloadInfo->md5sum);
     free(downloadInfo);
- //   printf("Finalizando downloadSongs.\n");
+   printf("Finalizando downloadSongs.\n");
     pthread_exit(NULL);
     return NULL;
 }
@@ -158,6 +159,7 @@ void *downloadSongs(void *arg) {
 void download(int *connectedOrNot, char *commandInput) {
    // printf("Inicio de download.\n");
     printf("Download started!\n");
+    
     if (*connectedOrNot == 1) {
         
         char *song_name = commandInput + strlen("DOWNLOAD ");
@@ -172,21 +174,22 @@ void download(int *connectedOrNot, char *commandInput) {
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);
 
         // Recibir información del archivo
-        Frame file_info_frame;
-        receive_frame(sockfd_poole, &file_info_frame);
+       // Frame file_info_frame;
+        //receive_frame(sockfd_poole, &file_info_frame);
         //print_frame(&file_info_frame);
-
-        FileInfo downloadInfo;
-        if (fillDownloadInfo(&file_info_frame, &downloadInfo) != 0) {
+        /*FileInfo downloadInfo;
+        if (fillDownloadInfo(file_info_frame, &downloadInfo) != 0) {
             printf("Error en fillDownloadInfo.\n");
-            free(file_info_frame.header);
-            free(file_info_frame.data);
+           // free(file_info_frame.header);
+           // free(file_info_frame.data);
             return;
         }
+        write(1,"Jambele\n",sizeof("Jambele\n"));
 
         //printf("Preparando para crear el hilo downloadSongs.\n");
         FileInfo *threadInfo = malloc(sizeof(FileInfo));
         *threadInfo = downloadInfo;
+        write(1,"Jambele\n",sizeof("Jambele\n"));
 
         pthread_t t1;
         int s = pthread_create(&t1, NULL, downloadSongs, threadInfo);
@@ -195,15 +198,16 @@ void download(int *connectedOrNot, char *commandInput) {
             free(threadInfo->fileName);
             free(threadInfo->md5sum);
             free(threadInfo);
-            free(file_info_frame.header);
-            free(file_info_frame.data);
+           // free(file_info_frame.header);
+            //free(file_info_frame.data);
             exit(EXIT_FAILURE);
         }
+        write(1,"Jambele\n",sizeof("Jambele\n"));*/
 
         //pthread_join(t1, NULL);
 
-        free(file_info_frame.header);
-        free(file_info_frame.data);
+       // free(file_info_frame.header);
+       // free(file_info_frame.data);
    //     printf("Fin de download.\n");
     } else {
         printf("Not connected to HAL 9000\n");
@@ -213,15 +217,16 @@ void download(int *connectedOrNot, char *commandInput) {
 
 
 
-void listSongs(int *connectedOrNot){//TODO F2
+void listSongs(int *connectedOrNot,Frame incoming_frame) {
     if(*connectedOrNot){
         char frame_buffer[FRAME_SIZE] = {0};
         fillFrame(frame_buffer,0x02,"LIST_SONGS"," ");
         
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
+                print_frame(&incoming_frame);
 
-       // print_frame(&incoming_frame);
-        Frame incoming_frame;
+        //print_frame(frame);
+       /* Frame incoming_frame;
         
         int errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
         print_frame(&incoming_frame);
@@ -231,7 +236,7 @@ void listSongs(int *connectedOrNot){//TODO F2
             perror("Error\n");
         }
         free(incoming_frame.header);
-        free(incoming_frame.data);
+        free(incoming_frame.data);*/
     }
     else{
         printF("Cannot list, you are not connected to HAL 9000\n");
@@ -240,15 +245,16 @@ void listSongs(int *connectedOrNot){//TODO F2
 
 
 
-void listPlaylists(int *connectedOrNot){//TODO F2
+void listPlaylists(int *connectedOrNot,Frame incoming_frame) {
      if(*connectedOrNot){
         char frame_buffer[FRAME_SIZE] = {0};
         fillFrame(frame_buffer,0x06,"LIST_PLAYLISTS"," ");
 
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
+                print_frame(&incoming_frame);
 
-       // print_frame(&incoming_frame);
-       Frame incoming_frame;
+     //   print_frame(&frame);
+      /* Frame incoming_frame;
         
         int errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
         print_frame(&incoming_frame);
@@ -258,7 +264,7 @@ void listPlaylists(int *connectedOrNot){//TODO F2
             perror("Error\n");
         }
         free(incoming_frame.header);
-        free(incoming_frame.data);
+        free(incoming_frame.data);*/
     }
     else{
         printF("Cannot list, you are not connected to HAL 9000\n");
@@ -466,20 +472,47 @@ void *controleCommandsWrapper(void *args) {
     return (void *)(intptr_t)result;
 }
 
+void download2(Frame *file_info_frame){
+    FileInfo downloadInfo;
+    if((strcasecmp("NEW_FILE",file_info_frame->header) == 0)){
 
+        if (fillDownloadInfo(file_info_frame, &downloadInfo) != 0) {
+            printf("Error en fillDownloadInfo.\n");
+            free(file_info_frame->header);
+            free(file_info_frame->data);
+            return;
+        }
+        printf("Preparando para crear el hilo downloadSongs.\n");
+        FileInfo *threadInfo = malloc(sizeof(FileInfo));
+        *threadInfo = downloadInfo;
+
+        pthread_t t1;
+        int s = pthread_create(&t1, NULL, downloadSongs, threadInfo);
+        if (s != 0) {
+            printf("pthread_create failed\n");
+            free(threadInfo->fileName);
+            free(threadInfo->md5sum);
+            free(threadInfo);
+            free(file_info_frame->header);
+            free(file_info_frame->data);
+            exit(EXIT_FAILURE);
+        }
+    }
+      
+
+}
 
 int controleCommands(char whichCommand[50],int *connectedOrNot) {
     int flag=0;
     char *whichCommand1,*whichCommand2;
     const char delimiter = ' ';
     char *tokens[MAX_TOKENS];
+    int errorSocketOrNot=0;
     whichCommand1=strtok(whichCommand, &delimiter);
 
-  /*  Frame incoming_frame;
-    
-    int errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
-    print_frame(&incoming_frame);
-    if (errorSocketOrNot >= 0) {*/
+    Frame incoming_frame;
+   
+        //TODO mostrar les cansons
         //TODO mostrar les cansons
    
 
@@ -515,6 +548,7 @@ int controleCommands(char whichCommand[50],int *connectedOrNot) {
             }
 
             if(strcasecmp(whichCommand1,"DOWNLOAD") == 0){ //TODO F3
+                print_frame(&incoming_frame);
                 download(connectedOrNot, whichCommand);
                 flag=1; 
             }
@@ -534,9 +568,21 @@ int controleCommands(char whichCommand[50],int *connectedOrNot) {
                 printF("ERROR: Please input a valid command.\n");
             }
         }
-  /*  } else {
+  
+    if(*connectedOrNot==1){
+       // write(1,"HOLA JAMBELE",sizeof("HOLA JAMBELE"));
+        errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
+        //if(strcasecmp("CHECK",whichCommand1) == 0){
+            if(strcasecmp(whichCommand1,"DOWNLOAD") == 0){
+                print_frame(&incoming_frame);
+                download2(&incoming_frame);
+            }
+        //}
+    }
+    if (errorSocketOrNot >= 0) {
+    } else {
         perror("Error\n");
-    }*/
+    }
     free(incoming_frame.header);
     free(incoming_frame.data);
     return 1;

@@ -50,9 +50,9 @@ typedef struct {
 void freeMemory(Bowman* bowmaneta,int numUsuaris);
 void printInfo(Bowman* bowmaneta);
 void connectDiscovery(char *tokens[]);
-void download(int *connectedOrNot, char *commandInput);
-void listSongs(int *connectedOrNot);
-void listPlaylists(int *connectedOrNot);
+void download(int *connectedOrNot, char *commandInput) ;
+void listSongs(int *connectedOrNot,Frame incoming_frame);
+void listPlaylists(int *connectedOrNot,Frame incoming_frame);
 void checkDownload(int *connectedOrNot);
 void clearDownload(int *connectedOrNot);
 int controleCommands(char whichCommand[50],int *connectedOrNot);

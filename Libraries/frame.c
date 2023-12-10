@@ -69,9 +69,9 @@ int receive_frame(int sockfd, Frame *frame) {
     ssize_t bytes_read = 0;
     size_t total_bytes_read = 0;
     while (total_bytes_read < sizeof(buffer)) {
-        printf("Debug: llegint del socket...\n");
+        //printf("Debug: llegint del socket...\n");
         bytes_read = recv(sockfd, buffer + total_bytes_read, sizeof(buffer) - total_bytes_read, 0);
-        printf("Debug: Bytes recibidos: %ld\n", bytes_read);
+        //printf("Debug: Bytes recibidos: %ld\n", bytes_read);
 
         if (bytes_read < 0) {
             write(STDOUT_FILENO, "Error reading from socket\n", sizeof("Error reading from socket\n"));   
@@ -106,7 +106,7 @@ int receive_frame(int sockfd, Frame *frame) {
     memcpy(frame->data, &buffer[3 + frame->header_length], data_length);
     frame->data[data_length] = '\0'; // Null-terminar el data
 
-    printf("Debug: Trama rebuda. Tipo: %x, Header: %s, Data: %s\n", frame->type, frame->header, frame->data);
+    //printf("Debug: Trama rebuda. Tipo: %x, Header: %s, Data: %s\n", frame->type, frame->header, frame->data);
    // printf("\n");
     /*printf("Received frame type: 0x%02X\n", frame->type);
     printf("Received frame header length: %u\n", frame->header_length);

@@ -43,7 +43,6 @@ void sendPlayListResponse(int socket) {
 }
 
 
-
 void sendFileData(int socket, const char *file_path, int idNumRandom) {
     int fd_file = open(file_path, O_RDONLY);
     if (fd_file == -1) {
@@ -96,6 +95,13 @@ void sendFileData(int socket, const char *file_path, int idNumRandom) {
     close(fd_file);
 }
 
+void *sendFileDataWrapper(void *args) {
+    ThreadArgs2 *threadArgs = (ThreadArgs2 *)args;
+     sendFileData(threadArgs->socket, threadArgs->path_found, threadArgs->idNumRandom);
+    //threadArgs->connectedOrNot=result;
+    return NULL;
+}
+
 
 void enviarAcknowledge(int newsock,int errorSocketOrNot) {
     char *header;
@@ -108,13 +114,10 @@ void enviarAcknowledge(int newsock,int errorSocketOrNot) {
     
     char frame_buffer[FRAME_SIZE] = {0};
     fillFrame(frame_buffer,0x01,header," ");
-    printf("Debug: Enviando ACK a Bowman...\n");
     send(newsock, frame_buffer, 256, 0);//Bowman send poole
-    printf("Debug: ACK enviado a Bowman.\n");
 }
 
 int handleBowmanConnection(int *newsock, int errorSocketOrNot, Frame *incoming_frame) {
-    printf("Debug: handleBowmanConnection iniciado\n");
 
     if (errorSocketOrNot < 0) {
         perror("Error en handleBowmanConnection");
@@ -122,10 +125,8 @@ int handleBowmanConnection(int *newsock, int errorSocketOrNot, Frame *incoming_f
         return -1;
     }
 
-    printf("Debug: Trama recibida con header: %s\n", incoming_frame->header);
    
     if (strcmp(incoming_frame->header, "NEW_BOWMAN") == 0) { 
-        printf("Debug: Procesando trama con header: %s\n", incoming_frame->header);
         char *buffer;
         asprintf(&buffer,"New user connected: %s.\n\n...", incoming_frame->data);  
         write(STDOUT_FILENO, buffer, strlen(buffer));   
@@ -192,7 +193,24 @@ int handleBowmanConnection(int *newsock, int errorSocketOrNot, Frame *incoming_f
             fillFrame(frame_buffer, 0x04, "NEW_FILE", data_info);
             send(*newsock, frame_buffer, FRAME_SIZE, 0); //aquest l'envia bé
             
-            sendFileData(*newsock, path_found,idNumRandom);
+
+            ThreadArgs2 *args = malloc(sizeof(ThreadArgs2));
+            if (!args) {
+                perror("Error al asignar memoria para args");
+                // close(newsock);
+            // continue;
+            }
+            args->path_found=path_found;
+            args->socket = *newsock;
+            args->idNumRandom =idNumRandom;
+
+            pthread_t thread_id;
+            if (pthread_create(&thread_id, NULL, sendFileDataWrapper, (void *)args) != 0) {   //sendFileData(*newsock, path_found,idNumRandom);
+                perror("Error al crear thread");
+                free(args);
+                //close(newsock);
+            }
+           
 
             free(data_info); 
             free(md5sum);    
@@ -218,20 +236,17 @@ void *clientHandler(void *args) {
     int clientSocket = threadArgs->socket;
     free(threadArgs);
 
-    printf("Debug: Thread iniciat per socket %d...\n", clientSocket);
 
     while (1) {
         Frame incoming_frame;
         int errorSocketOrNot = receive_frame(clientSocket, &incoming_frame);
 
-        if (errorSocketOrNot < 0) {
-            printf("Debug: Error real en receive_frame\n");
+        if (errorSocketOrNot == -1) {
             break;
-        } else if (errorSocketOrNot == 0) {
+        }/* else if (errorSocketOrNot == 0) {
             printf("Debug: Client tanca la conexio\n");
             break;
-        }
-        printf("Debug: Processant dades de client per socket: %d\n", clientSocket);
+        }*/
         int exitOrNot = handleBowmanConnection(&clientSocket, errorSocketOrNot, &incoming_frame);
 
 
@@ -241,16 +256,9 @@ void *clientHandler(void *args) {
         }
     }
 
-    printf("Debug: tanquem socket %d\n", clientSocket);
     close(clientSocket);
-    printf("Debug: Thread finalitzat para socket %d\n", clientSocket);
     pthread_exit(NULL);
 }
-
-
-
-
-
 
 
 void connectToBowman(Poole *poolete) {
@@ -291,7 +299,6 @@ void connectToBowman(Poole *poolete) {
     
 
     while (1) {
-        printf("Debug: Esperant noves conexions...\n");
 
         struct sockaddr_in c_addr;
         socklen_t c_len = sizeof(c_addr);
@@ -301,7 +308,6 @@ void connectToBowman(Poole *poolete) {
             continue;  
         }
 
-        printf("Debug: nou accept. Socket: %d\n", newsock);
 
       
         ThreadArgs *args = malloc(sizeof(ThreadArgs));
@@ -320,7 +326,6 @@ void connectToBowman(Poole *poolete) {
             free(args);
             close(newsock);
         } else {
-            printf("Debug: Thread creat pel socket %d\n", newsock);
         }
     }
     

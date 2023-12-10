@@ -8,7 +8,7 @@ int sockfd_poole;
 
 
 int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
-    printf("Iniciando fillDownloadInfo...\n");
+    //printf("Iniciando fillDownloadInfo...\n");
     char *token, *dataCopy;
 
     dataCopy = strdup(file_info_frame->data);
@@ -16,7 +16,7 @@ int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
         perror("strdup failed");
         return -1;
     }
-    printf("Data copiada: %s\n", dataCopy);
+    //printf("Data copiada: %s\n", dataCopy);
 
     // Extracción de FileName
     token = strtok(dataCopy, "&");
@@ -24,7 +24,7 @@ int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
         free(dataCopy);
         return -1;
     }
-    printf("FileName extraído: %s\n", token);
+    //printf("FileName extraído: %s\n", token);
     downloadInfo->fileName = strdup(token);
 
     // Extracción de fileSize
@@ -34,7 +34,7 @@ int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
         free(dataCopy);
         return -1;
     }
-    printf("FileSize extraído: %s\n", token);
+    //printf("FileSize extraído: %s\n", token);
     downloadInfo->fileSize = atoi(token);
 
     // Extracción de md5sum
@@ -44,7 +44,7 @@ int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
         free(dataCopy);
         return -1;
     }
-    printf("MD5SUM extraído: %s\n", token);
+    //printf("MD5SUM extraído: %s\n", token);
     downloadInfo->md5sum = strdup(token);
 
     // Extracción de songId
@@ -55,11 +55,11 @@ int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
         free(dataCopy);
         return -1;
     }
-    printf("SongId extraído: %s\n", token);
+    //printf("SongId extraído: %s\n", token);
     downloadInfo->songId = atoi(token);
 
     free(dataCopy);
-    printf("fillDownloadInfo completado correctamente.\n");
+    //printf("fillDownloadInfo completado correctamente.\n");
     return 0;
 }
 
@@ -69,7 +69,7 @@ int receiveFileData(int sockfd, int fd_song, ssize_t fileSize) {
     int fileCompleted = 0;
     ssize_t totalBytesReceived = 0;
 
-    printf("Inicio de receiveFileData. fileSize esperado: %zd bytes\n", fileSize);
+    //printf("Inicio de receiveFileData. fileSize esperado: %zd bytes\n", fileSize);
 
     while (!fileCompleted && totalBytesReceived < fileSize) {
         incoming_frame.header = NULL;
@@ -81,7 +81,7 @@ int receiveFileData(int sockfd, int fd_song, ssize_t fileSize) {
             break;
         }
 
-        printf("Frame recibido. Header: %s, Data size: %zd\n", incoming_frame.header, strlen(incoming_frame.data));
+        //printf("Frame recibido. Header: %s, Data size: %zd\n", incoming_frame.header, strlen(incoming_frame.data));
 
         if (strcmp(incoming_frame.header, "FILE_DATA") == 0) {
             int idAndSeparatorLength = sizeof(int) + 1;
@@ -101,21 +101,21 @@ int receiveFileData(int sockfd, int fd_song, ssize_t fileSize) {
             }
 
             totalBytesReceived += bytes_written;
-            printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, totalBytesReceived);
+          //  printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, totalBytesReceived);
         } 
 
         free(incoming_frame.header);
         free(incoming_frame.data);
     }
 
-    printf("Total data received: %zd bytes\n", totalBytesReceived);
+    //printf("Total data received: %zd bytes\n", totalBytesReceived);
     return (totalBytesReceived == fileSize) ? 0 : -1;
 }
 
 
 void *downloadSongs(void *arg) {
     FileInfo *downloadInfo = (FileInfo *)arg;
-    printf("Iniciando downloadSongs. Descargando: %s, fileSize: %d\n", downloadInfo->fileName, downloadInfo->fileSize);
+  //  printf("Iniciando downloadSongs. Descargando: %s, fileSize: %d\n", downloadInfo->fileName, downloadInfo->fileSize);
 
     char songPath[PATH_MAX];
     sprintf(songPath, "%s.mp3", downloadInfo->fileName);
@@ -149,14 +149,14 @@ void *downloadSongs(void *arg) {
     free(downloadInfo->fileName);
     free(downloadInfo->md5sum);
     free(downloadInfo);
-    printf("Finalizando downloadSongs.\n");
+ //   printf("Finalizando downloadSongs.\n");
     pthread_exit(NULL);
     return NULL;
 }
 
 
 void download(int *connectedOrNot, char *commandInput) {
-    printf("Inicio de download.\n");
+   // printf("Inicio de download.\n");
     printf("Download started!\n");
     if (*connectedOrNot == 1) {
         
@@ -174,7 +174,7 @@ void download(int *connectedOrNot, char *commandInput) {
         // Recibir información del archivo
         Frame file_info_frame;
         receive_frame(sockfd_poole, &file_info_frame);
-        print_frame(&file_info_frame);
+        //print_frame(&file_info_frame);
 
         FileInfo downloadInfo;
         if (fillDownloadInfo(&file_info_frame, &downloadInfo) != 0) {
@@ -184,7 +184,7 @@ void download(int *connectedOrNot, char *commandInput) {
             return;
         }
 
-        printf("Preparando para crear el hilo downloadSongs.\n");
+        //printf("Preparando para crear el hilo downloadSongs.\n");
         FileInfo *threadInfo = malloc(sizeof(FileInfo));
         *threadInfo = downloadInfo;
 
@@ -200,11 +200,11 @@ void download(int *connectedOrNot, char *commandInput) {
             exit(EXIT_FAILURE);
         }
 
-        pthread_join(t1, NULL);
+        //pthread_join(t1, NULL);
 
         free(file_info_frame.header);
         free(file_info_frame.data);
-        printf("Fin de download.\n");
+   //     printf("Fin de download.\n");
     } else {
         printf("Not connected to HAL 9000\n");
     }
@@ -220,10 +220,11 @@ void listSongs(int *connectedOrNot){//TODO F2
         
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
 
+       // print_frame(&incoming_frame);
         Frame incoming_frame;
         
         int errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
-        
+        print_frame(&incoming_frame);
         if (errorSocketOrNot >= 0) {
             //TODO mostrar les cansons
         } else {
@@ -246,14 +247,16 @@ void listPlaylists(int *connectedOrNot){//TODO F2
 
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
 
-        Frame incoming_frame;
+       // print_frame(&incoming_frame);
+       Frame incoming_frame;
+        
         int errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
+        print_frame(&incoming_frame);
         if (errorSocketOrNot >= 0) {
-            
+            //TODO mostrar les cansons
         } else {
             perror("Error\n");
         }
-        
         free(incoming_frame.header);
         free(incoming_frame.data);
     }
@@ -325,7 +328,7 @@ void logout(){
     int errorSocketOrNot=read(sockfd_poole, info, 256);//bowman recibe from poole
     Frame frameAcknoledge;
     printaAcknowledge(info,&frameAcknoledge);
-    char *header;
+   // char *header;
     if(errorSocketOrNot!=-1 ){
 
         if(strcmp(frameAcknoledge.header,"[CON_OK]")){
@@ -416,17 +419,14 @@ void connectToPoole(char *tokens[]) {
     }
 
     
-    printf("Debug: enviant trama a Poole...\n");
     send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);
-    printf("Debug: Trama enviada a Poole.\n");
 
     char info[256];
-    printf("Debug: esperant resposta de Poole...\n");
     read(sockfd_poole, info, 256);
-    printf("Debug: resposta rebuda de Poole. contingut:: %s\n", info);
-
-    Frame frameAcknoledge;
-    printaAcknowledge(info,&frameAcknoledge);
+    
+    //Frame frameAcknoledge;
+    //printaAcknowledge(info,&frameAcknoledge);
+    //print_frame(&frameAcknoledge);
 
 }
 
@@ -459,6 +459,14 @@ int connectBowman(char *tokens[MAX_TOKENS]){
     return 1; 
 }
 
+void *controleCommandsWrapper(void *args) {
+    ThreadArgs *threadArgs = (ThreadArgs *)args;
+    int result = controleCommands(threadArgs->whichCommand, &(threadArgs->connectedOrNot));
+    threadArgs->connectedOrNot=result;
+    return (void *)(intptr_t)result;
+}
+
+
 
 int controleCommands(char whichCommand[50],int *connectedOrNot) {
     int flag=0;
@@ -467,57 +475,70 @@ int controleCommands(char whichCommand[50],int *connectedOrNot) {
     char *tokens[MAX_TOKENS];
     whichCommand1=strtok(whichCommand, &delimiter);
 
-    if(whichCommand1 != NULL){
-        if((strcasecmp("CONNECT",whichCommand1) == 0) && *connectedOrNot == 0){//Segona condicio per que no es connecti mes d'un cop
-            whichCommand2=strtok(NULL, &delimiter);//Si li fiquem NULL començara la segona busqueda per on es va quedar cuan es va cridar per primer cop strtok
-            if(whichCommand2 == NULL){
-                *connectedOrNot=connectBowman(tokens);
-            }
-            else{
-                printF("Unknown command\n");
-            } 
-            flag=1;
-        }
+  /*  Frame incoming_frame;
+    
+    int errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
+    print_frame(&incoming_frame);
+    if (errorSocketOrNot >= 0) {*/
+        //TODO mostrar les cansons
+   
 
-        if(strcasecmp("LOGOUT",whichCommand1) == 0){//TODO F2
-            logout();
-            return 0;
-        }
-
-        if(strcasecmp("LIST",whichCommand1) == 0){//TODO F2
-            whichCommand2=strtok(NULL, &delimiter);//Si li fiquem NULL començara la segona busqueda per on es va quedar cuan es va cridar per primer cop strtok
-            if(whichCommand2 != NULL){
-                if(strcasecmp("SONGS",whichCommand2) == 0){
-                    listSongs(connectedOrNot); 
-                    flag=1;
+        if(whichCommand1 != NULL){
+            if((strcasecmp("CONNECT",whichCommand1) == 0) && *connectedOrNot == 0){//Segona condicio per que no es connecti mes d'un cop
+                whichCommand2=strtok(NULL, &delimiter);//Si li fiquem NULL començara la segona busqueda per on es va quedar cuan es va cridar per primer cop strtok
+                if(whichCommand2 == NULL){
+                    *connectedOrNot=connectBowman(tokens);
                 }
-                else if(strcasecmp("PLAYLISTS",whichCommand2) == 0){
-                    listPlaylists(connectedOrNot);
-                    flag=1;
+                else{
+                    printF("Unknown command\n");
+                } 
+                flag=1;
+            }
+
+            if(strcasecmp("LOGOUT",whichCommand1) == 0){//TODO F2
+                logout();
+                return 0;
+            }
+
+            if(strcasecmp("LIST",whichCommand1) == 0){//TODO F2
+                whichCommand2=strtok(NULL, &delimiter);//Si li fiquem NULL començara la segona busqueda per on es va quedar cuan es va cridar per primer cop strtok
+                if(whichCommand2 != NULL){
+                    if(strcasecmp("SONGS",whichCommand2) == 0){
+                        listSongs(connectedOrNot,incoming_frame); 
+                        flag=1;
+                    }
+                    else if(strcasecmp("PLAYLISTS",whichCommand2) == 0){
+                        listPlaylists(connectedOrNot,incoming_frame);
+                        flag=1;
+                    }
                 }
             }
-        }
 
-        if(strcasecmp(whichCommand1,"DOWNLOAD") == 0){ //TODO F3
-            download(connectedOrNot, whichCommand);
-            flag=1; 
-        }
+            if(strcasecmp(whichCommand1,"DOWNLOAD") == 0){ //TODO F3
+                download(connectedOrNot, whichCommand);
+                flag=1; 
+            }
 
-        if(strcasecmp("CHECK",whichCommand1) == 0){//TODO F3
-            checkDownload(connectedOrNot);
-            flag=1;
-        }
+            if(strcasecmp("CHECK",whichCommand1) == 0){//TODO F3
+                checkDownload(connectedOrNot);
+                flag=1;
+            }
 
-        if(strcasecmp("CLEAR",whichCommand1) == 0){//TODO F3
-            clearDownload(connectedOrNot);
-            flag=1;
-        }
-        
+            if(strcasecmp("CLEAR",whichCommand1) == 0){//TODO F3
+                clearDownload(connectedOrNot);
+                flag=1;
+            }
+            
 
-        else if(flag==0){
-            printF("ERROR: Please input a valid command.\n");
+            else if(flag==0){
+                printF("ERROR: Please input a valid command.\n");
+            }
         }
-    }
+  /*  } else {
+        perror("Error\n");
+    }*/
+    free(incoming_frame.header);
+    free(incoming_frame.data);
     return 1;
 }
 
@@ -527,8 +548,8 @@ void kctrlc(){
 }
 
 int main(int argc, char *argv[]){
-    char whichCommand[50];
-    int connectedOrNot=0;    
+   // char whichCommand[50];
+    //int connectedOrNot=0;    
     
     if (argc != 2){    //Llegir config.dat
         printF("ERROR: Incorrect number of arguments\n");
@@ -544,13 +565,42 @@ int main(int argc, char *argv[]){
     signal(SIGINT, kctrlc);
 
     int exitOrNot=1;
-     // int sockfd_poole=0;
+    //int sockfd_poole=0;
+    ThreadArgs *args = malloc(sizeof(ThreadArgs));
+    if (!args) {
+        perror("Error al asignar memoria para args");
+        // close(newsock);
+       // continue;
+    }
+    args->connectedOrNot=0;
+
     while(exitOrNot==1){   
+        /** 1R THREAD ESCOLTAR DE LA TERMINAL*/
+       
+
         int bytesLlegits;
         write(1, "\n$", 3);
-        bytesLlegits = read(0, whichCommand, 100);
-        whichCommand[bytesLlegits-1] = '\0';
-        exitOrNot=controleCommands(whichCommand,&connectedOrNot);    
+        bytesLlegits = read(0,  args->whichCommand, 100); //TODO IMPORTANT*******************************************************************************************
+        
+
+        /** 2N THREAD Pasar a interpretar quina comanda s'ha escrit per LA TERMINAL*/
+       
+
+        args->whichCommand[bytesLlegits-1] = '\0';
+
+        //void *res;
+        pthread_t thread_id;
+        if (pthread_create(&thread_id, NULL, controleCommandsWrapper, (void *)args) != 0) { // exitOrNot=controleCommands(whichCommand,&connectedOrNot);  
+            perror("Error al crear thread");
+            free(args);
+            //close(newsock);
+        }
+        printf ("Missatge des del main()\n");
+       // pthread_join (thread_id,&res);
+        //printf("Thread returns %d\n", (int)(intptr_t)res);
+      // exit ();
+
+        
     }
 
     //freeAndClose(poole_frame,sockfd,poolete,numUsuaris);

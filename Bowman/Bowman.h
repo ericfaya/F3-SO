@@ -40,6 +40,12 @@ typedef struct {
     int songId;
 } FileInfo;
 
+typedef struct {
+    char whichCommand[50];
+    int connectedOrNot;    
+   // int socket; // Socket del cliente Bowman
+} ThreadArgs;
+
 
 void freeMemory(Bowman* bowmaneta,int numUsuaris);
 void printInfo(Bowman* bowmaneta);

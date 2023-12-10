@@ -44,6 +44,12 @@ typedef struct {
     int socket; // Socket del cliente Bowman
 } ThreadArgs;
 
+typedef struct {
+    int socket; // Socket del cliente Bowman
+    const char *path_found;
+    int idNumRandom;
+} ThreadArgs2;
+
 
 void sendSongListResponse(int socket);
 int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_frame) ;

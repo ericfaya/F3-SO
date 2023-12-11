@@ -5,6 +5,7 @@ Bowman* bowmaneta;
 int numUsuaris;
 char *tokens[MAX_TOKENS];
 int sockfd_poole;
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
@@ -307,13 +308,14 @@ int receiveFileData(int sockfd, int fd_song, ssize_t fileSize) {
     while (!fileCompleted && totalBytesReceived < fileSize) {
         incoming_frame.header = NULL;
         incoming_frame.data = NULL;
-
+pthread_mutex_lock(&mutex);
+                                              
         int errorSocketOrNot = receive_frame(sockfd, &incoming_frame);
         if (errorSocketOrNot < 0) {
             perror("Error receiving frame");
             break;
         }
-
+  pthread_mutex_unlock(&mutex);
         //printf("Frame recibido. Header: %s, Data size: %zd\n", incoming_frame.header, strlen(incoming_frame.data));
 
         if (strcmp(incoming_frame.header, "FILE_DATA") == 0) {
@@ -405,42 +407,9 @@ void download(int *connectedOrNot, char *commandInput) {
         fillFrame(frame_buffer, 0x03, "DOWNLOAD_SONG", song_name);
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);
 
-        // Recibir información del archivo
-       // Frame file_info_frame;
-        //receive_frame(sockfd_poole, &file_info_frame);
-        //print_frame(&file_info_frame);
-        /*FileInfo downloadInfo;
-        if (fillDownloadInfo(file_info_frame, &downloadInfo) != 0) {
-            printf("Error en fillDownloadInfo.\n");
-           // free(file_info_frame.header);
-           // free(file_info_frame.data);
-            return;
-        }
-        write(1,"Jambele\n",sizeof("Jambele\n"));
+        
 
-        //printf("Preparando para crear el hilo downloadSongs.\n");
-        FileInfo *threadInfo = malloc(sizeof(FileInfo));
-        *threadInfo = downloadInfo;
-        write(1,"Jambele\n",sizeof("Jambele\n"));
-
-        pthread_t t1;
-        int s = pthread_create(&t1, NULL, downloadSongs, threadInfo);
-        if (s != 0) {
-            printf("pthread_create failed\n");
-            free(threadInfo->fileName);
-            free(threadInfo->md5sum);
-            free(threadInfo);
-           // free(file_info_frame.header);
-            //free(file_info_frame.data);
-            exit(EXIT_FAILURE);
-        }
-        write(1,"Jambele\n",sizeof("Jambele\n"));*/
-
-        //pthread_join(t1, NULL);
-
-       // free(file_info_frame.header);
-       // free(file_info_frame.data);
-   //     printf("Fin de download.\n");
+       
     } else {
         printf("Not connected to HAL 9000\n");
     }
@@ -470,7 +439,7 @@ void download2(Frame *file_info_frame){
             free(threadInfo);
             free(file_info_frame->header);
             free(file_info_frame->data);
-           // exit(EXIT_FAILURE);
+           // exit(EXIT_FAILURE);Erfaes888
         }
                 
        // void *res;
@@ -509,39 +478,54 @@ int controleCommands(char whichCommand[50],int *connectedOrNot) {
                 whichCommand2=strtok(NULL, &delimiter);//Si li fiquem NULL començara la segona busqueda per on es va quedar cuan es va cridar per primer cop strtok
                 if(whichCommand2 != NULL){
                     if(strcasecmp("SONGS",whichCommand2) == 0){
-                                                listSongs(connectedOrNot); 
+                        listSongs(connectedOrNot); 
+                        pthread_mutex_lock(&mutex);
 
                         errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
                         if (errorSocketOrNot >= 0) {
-                        print_frame(&incoming_frame);
+                            print_frame(&incoming_frame);
 
                         }
+                        pthread_mutex_unlock(&mutex);
+
                         flag=1;
                     }
                     else if(strcasecmp("PLAYLISTS",whichCommand2) == 0){
-                                                    listPlaylists(connectedOrNot);
+                        listPlaylists(connectedOrNot);
+                        pthread_mutex_lock(&mutex);
 
                         errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
                         if (errorSocketOrNot >= 0) {
-                        print_frame(&incoming_frame);
+                            print_frame(&incoming_frame);
 
                         }
+                        pthread_mutex_unlock(&mutex);
+
                         flag=1;
                     }
                 }
             }
 
             if(strcasecmp(whichCommand1,"DOWNLOAD") == 0){ //TODO F3
-                write(1,"Jambele\n",sizeof("Jambele\n"));
+                //write(1,"Jambele\n",sizeof("Jambele\n"));
                 //print_frame(&incoming_frame);
                 download(connectedOrNot, whichCommand);
-                print_frame(&incoming_frame);
-                errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
-                print_frame(&incoming_frame);
-                 if (errorSocketOrNot >= 0) {
-                download2(&incoming_frame);
+                pthread_mutex_lock(&mutex);
 
-                 }
+            //print_frame(&incoming_frame);
+                errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
+                pthread_mutex_unlock(&mutex);
+                print_frame(&incoming_frame);
+                if (errorSocketOrNot >= 0) {
+                    if(strcasecmp(whichCommand1,"DOWNLOAD") == 0){
+                        pthread_mutex_lock(&mutex);
+                        download2(&incoming_frame);
+                        pthread_mutex_unlock(&mutex);
+
+                    }
+                }
+                
+
                 flag=1; 
             }
 
@@ -554,7 +538,19 @@ int controleCommands(char whichCommand[50],int *connectedOrNot) {
                 clearDownload(connectedOrNot);
                 flag=1;
             }
+            /*pthread_mutex_lock(&mutex);
+
+            //print_frame(&incoming_frame);
+            errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
+            pthread_mutex_unlock(&mutex);
+            print_frame(&incoming_frame);
+            if (errorSocketOrNot >= 0) {
+                if(strcasecmp(whichCommand1,"DOWNLOAD") == 0){
+                    download2(&incoming_frame);
+                }
+            }*/
             
+
 
             else if(flag==0){
                 printF("ERROR: Please input a valid command.\n");

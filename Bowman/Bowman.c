@@ -509,11 +509,23 @@ int controleCommands(char whichCommand[50],int *connectedOrNot) {
                 whichCommand2=strtok(NULL, &delimiter);//Si li fiquem NULL començara la segona busqueda per on es va quedar cuan es va cridar per primer cop strtok
                 if(whichCommand2 != NULL){
                     if(strcasecmp("SONGS",whichCommand2) == 0){
-                        listSongs(connectedOrNot); 
+                                                listSongs(connectedOrNot); 
+
+                        errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
+                        if (errorSocketOrNot >= 0) {
+                        print_frame(&incoming_frame);
+
+                        }
                         flag=1;
                     }
                     else if(strcasecmp("PLAYLISTS",whichCommand2) == 0){
-                        listPlaylists(connectedOrNot);
+                                                    listPlaylists(connectedOrNot);
+
+                        errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
+                        if (errorSocketOrNot >= 0) {
+                        print_frame(&incoming_frame);
+
+                        }
                         flag=1;
                     }
                 }
@@ -550,6 +562,7 @@ int controleCommands(char whichCommand[50],int *connectedOrNot) {
         }
   
     if(*connectedOrNot==1){
+  //      print_frame(&incoming_frame);
         //print_frame(&incoming_frame);
      /*      print_frame(&incoming_frame);
 

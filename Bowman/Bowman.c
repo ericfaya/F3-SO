@@ -197,8 +197,11 @@ void *downloadSongs(void *arg) {
         pthread_exit(NULL);
         return NULL;
     } 
-
-    if (receiveFileData(sockfd_poole, fd_song, downloadInfo->fileSize) == 0) {
+    pthread_mutex_lock(&socket_mutex); 
+    pthread_mutex_lock(&socket_mutex); 
+    int result = receiveFileData(sockfd_poole, fd_song, downloadInfo->fileSize);
+    pthread_mutex_unlock(&socket_mutex);
+    if (result == 1){
         //printf("Download completed\n");  
 
         char *calculated_md5 = calculateMD5(songPath);
@@ -212,8 +215,8 @@ void *downloadSongs(void *arg) {
     } else {
         printf("Download failed\n");  
     }
-
-    pthread_mutex_unlock(&socket_mutex); 
+   
+    
     //write(1,"UNLOCK,\n",sizeof("UNLOCK\n"));
 
 
@@ -247,11 +250,9 @@ void processFileResponse(Frame *frame) {
     pthread_t downloadThread;
     if (pthread_create(&downloadThread, NULL, downloadSongs, threadInfo) != 0) {
         perror("Error creating download thread");
-    
+        free(threadInfo);
     }
     //pthread_join(downloadThread,NULL);
-  
-
 }
 
 

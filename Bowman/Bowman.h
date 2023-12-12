@@ -20,9 +20,6 @@
 #include "frame.h"
 #include "md5functions.h"
 
-
-
-
 #define printF(x) write(1, x, strlen(x))
 
 typedef struct
@@ -38,21 +35,17 @@ typedef struct {
     int fileSize;
     char *md5sum;
     int songId;
+    int fd_song;
+    Frame frame;
 } FileInfo;
-
-typedef struct {
-    char whichCommand[50];
-    int connectedOrNot;    
-   // int socket; // Socket del cliente Bowman
-} ThreadArgs;
 
 
 void freeMemory(Bowman* bowmaneta,int numUsuaris);
 void printInfo(Bowman* bowmaneta);
 void connectDiscovery(char *tokens[]);
 void download(int *connectedOrNot, char *commandInput) ;
-void listSongs(int *connectedOrNot);
-void listPlaylists(int *connectedOrNot);
+void listSongs();
+void listPlaylists();
 void checkDownload(int *connectedOrNot);
 void clearDownload(int *connectedOrNot);
 int controleCommands(char whichCommand[50],int *connectedOrNot);

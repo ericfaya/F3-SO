@@ -117,6 +117,13 @@ int receive_frame(int sockfd, Frame *frame) {
 }
 
 void print_frame(Frame *frame) {
+    //printf("Type: 0x%02X\n", frame->type);
+    //printf("Header Length: %u\n", frame->header_length); 
+    printf("Header: %s\n", frame->header);
+    //printf("Data: %s\n", frame->data);
+}
+
+void print_frame2(Frame *frame) {
     printf("Type: 0x%02X\n", frame->type);
     printf("Header Length: %u\n", frame->header_length); 
     printf("Header: %s\n", frame->header);

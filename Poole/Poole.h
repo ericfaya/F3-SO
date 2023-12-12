@@ -20,6 +20,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <limits.h>
+#include <sys/param.h>
+
 
 #include "frame.h"
 #include "md5functions.h"
@@ -49,6 +51,13 @@ typedef struct {
     const char *path_found;
     int idNumRandom;
 } ThreadArgs2;
+
+typedef struct {
+    int socket;
+    char filePath[PATH_MAX];
+    int id;
+} FileTransferInfo;
+
 
 
 void sendSongListResponse(int socket);

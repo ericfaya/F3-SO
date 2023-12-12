@@ -5,6 +5,9 @@ Bowman* bowmaneta;
 int numUsuaris;
 char *tokens[MAX_TOKENS];
 int sockfd_poole;
+int isConnectedToPoole = 0;
+
+pthread_mutex_t socket_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
@@ -64,112 +67,6 @@ int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
     return 0;
 }
 
-
-
-
-
-
-void listSongs(int *connectedOrNot) {
-    if(*connectedOrNot){
-        char frame_buffer[FRAME_SIZE] = {0};
-        fillFrame(frame_buffer,0x02,"LIST_SONGS"," ");
-        
-        send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
-    }
-    else{
-        printF("Cannot list, you are not connected to HAL 9000\n");
-    } 
-}
-
-
-
-void listPlaylists(int *connectedOrNot) {
-     if(*connectedOrNot){
-        char frame_buffer[FRAME_SIZE] = {0};
-        fillFrame(frame_buffer,0x06,"LIST_PLAYLISTS"," ");
-
-        send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
-
-    }
-    else{
-        printF("Cannot list, you are not connected to HAL 9000\n");
-    }
-}
-
-void checkDownload(int *connectedOrNot){
-    if(*connectedOrNot){
-
-    }
-    else{
-        printF("Cannot check, you are not connected to HAL 9000\n");
-    }
-}
-
-void clearDownload(int *connectedOrNot){
-    if(*connectedOrNot)
-        printF("Clear\n");
-    else
-        printF("Cannot clear, you are not connected to HAL 9000\n");
-}
-
-
-void logoutDiscovery(){
-    char frame_buffer[FRAME_SIZE] = {0};
-    fillFrame(frame_buffer,0x06,"EXIT",tokens[0]);
-
-    struct sockaddr_in server_addr;    //sockaddr_in: struct defineix l’estructura que permet configurar diversos paràmetres del socket com IP, port
-    memset(&server_addr, 0, sizeof(server_addr));//Inicialitza,fica 0s a l'estructura
-    server_addr.sin_family = AF_INET;//tipus de familia de socket es tracta
-    server_addr.sin_port = htons(bowmaneta[0].portDiscovery);//(Host To Network Short) Converteix port a big endian
-
-  
-   
-    if (inet_pton(AF_INET, bowmaneta[0].ipDiscovery, &server_addr.sin_addr) < 0) { //Converteix representació en text de la ip a l’equivalent binari (IPv4)
-        perror("Invalid address/ Address not supported");
-        //fer free de memoria dinamica
-        exit(EXIT_FAILURE);
-    }
-
-    int sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP); // SOCK_STREAM protocol tcp orientat a connexio//AF_INET familia IPV4
-    if (sockfd < 0) {
-        perror("Cannot create socket");
-        exit(EXIT_FAILURE);
-    }
-
-    if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Connection Failed");
-        //fer free de memoria dinamica
-        exit(EXIT_FAILURE);
-        close(sockfd); //Per si acas
-    }
-
-    send(sockfd, frame_buffer, FRAME_SIZE, 0);
-    close(sockfd);
-}
-
-void logout(){
-    logoutDiscovery(); //A tokens li envia el nom del servidor
-    
-    char frame_buffer[FRAME_SIZE] = {0};
-    fillFrame(frame_buffer,0x02,"EXIT",bowmaneta[0].fullName);
-
-    send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
-    
-    char info[256];
-    int errorSocketOrNot=read(sockfd_poole, info, 256);//bowman recibe from poole
-    Frame frameAcknoledge;
-    printaAcknowledge(info,&frameAcknoledge);
-   // char *header;
-    if(errorSocketOrNot!=-1 ){
-
-        if(strcmp(frameAcknoledge.header,"[CON_OK]")){
-            close(sockfd_poole);//Crec que no es tindra que fer perque sino es tanca la comunicacio
-            printF("Thanks for using HAL 9000, see you soon, music lover!\n");
-            exit(0);
-        }//ELSE //  header = "CON_KO";
-    }   
-}
-
 void connectDiscovery(char *tokens[]){
     char *buffer;
 
@@ -202,6 +99,8 @@ void connectDiscovery(char *tokens[]){
     }
     
     send(sockfd, frame_buffer, FRAME_SIZE, 0);
+
+    
     
     char info[256];
     read(sockfd, info, 256);
@@ -213,10 +112,195 @@ void connectDiscovery(char *tokens[]){
     close(sockfd);
     asprintf(&buffer, " %s\n",bowmaneta[0].fullName);
     write (STDOUT_FILENO, buffer, strlen(buffer));
+
+   
     free(buffer);
 }
 
-void connectToPoole(char *tokens[]) {
+void processSongsResponse(Frame *frame) {
+    printf("songs:\n");
+    print_frame2(frame);
+    // Aquí podrías agregar lógica adicional para manejar los datos de las canciones
+}
+
+void processPlaylistsResponse(Frame *frame) {
+    printf("playlists:\n");
+    print_frame2(frame);
+    // Aquí podrías agregar lógica adicional para manejar los datos de las playlists
+}
+
+int receiveFileData(int sockfd, int fd_song, ssize_t fileSize) {
+    Frame incoming_frame;
+    
+    ssize_t totalBytesReceived = 0;
+
+    //printf("Inicio de receiveFunctionFileData. fileSize esperado: %zd bytes\n", fileSize);
+    while ( totalBytesReceived < fileSize) {
+        incoming_frame.header = NULL;
+        incoming_frame.data = NULL;
+                                     
+        int errorSocketOrNot = receive_frame(sockfd, &incoming_frame);
+        if (errorSocketOrNot < 0) {
+                        printF("Error receiving frame");
+
+            perror("Error receiving frame");
+            break;
+        }
+        //printf("Frame recibido. Header: %s, Data size: %zd\n", incoming_frame.header, strlen(incoming_frame.data));
+
+        if (strcmp(incoming_frame.header, "FILE_DATA") == 0) {
+            int idAndSeparatorLength = sizeof(int) + 1;
+            char *fileDataStart = incoming_frame.data + idAndSeparatorLength;
+            ssize_t data_length = FRAME_SIZE - 3 - incoming_frame.header_length - idAndSeparatorLength;
+
+            if (totalBytesReceived + data_length > fileSize) {
+                data_length = fileSize - totalBytesReceived;
+            }
+
+            ssize_t bytes_written = write(fd_song, fileDataStart, data_length);
+            if (bytes_written == -1) {
+                                        printF("Error writing to file");
+
+                perror("Error writing to file");
+                free(incoming_frame.header);
+                free(incoming_frame.data);
+                return -1;
+            }
+
+            totalBytesReceived += bytes_written;
+            //printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, totalBytesReceived);
+        } 
+
+
+        free(incoming_frame.header);
+        free(incoming_frame.data);
+    }
+
+    //printf("Total data received: %zd bytes\n", totalBytesReceived);
+    return (totalBytesReceived == fileSize) ? 0 : -1;
+}
+
+
+void *downloadSongs(void *arg) {
+    FileInfo *downloadInfo = (FileInfo *)arg;
+    //printf("\nIniciando download Songs. Descargando: %s, fileSize: %d\n", downloadInfo->fileName, downloadInfo->fileSize);
+    char songPath[PATH_MAX];
+    sprintf(songPath, "%s.mp3", downloadInfo->fileName);
+
+    int fd_song = open(songPath, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+
+    if (fd_song == -1) {
+        perror("Error opening file for download");
+        free(downloadInfo->fileName);
+        free(downloadInfo->md5sum);
+        free(downloadInfo);
+        pthread_exit(NULL);
+        return NULL;
+    } 
+
+    if (receiveFileData(sockfd_poole, fd_song, downloadInfo->fileSize) == 0) {
+        //printf("Download completed\n");  
+
+        char *calculated_md5 = calculateMD5(songPath);
+        if (calculated_md5 != NULL && strcmp(downloadInfo->md5sum, calculated_md5) == 0) {
+            write(1,"MD5 verification successful\n",sizeof("MD5 verification successful\n"));
+
+        } else {
+            write(1,"MD5 verification failed\n",sizeof("MD5 verification failed\n"));
+        }
+        free(calculated_md5);
+    } else {
+        printf("Download failed\n");  
+    }
+
+    pthread_mutex_unlock(&socket_mutex); 
+    //write(1,"UNLOCK,\n",sizeof("UNLOCK\n"));
+
+
+    close(fd_song);
+
+    free(downloadInfo->fileName);
+    free(downloadInfo->md5sum);
+    free(downloadInfo);
+    //printf("Finalizando download Songs.\n");
+    //pthread_exit(NULL);
+    return NULL;
+}
+
+void processFileResponse(Frame *frame) {
+        
+    FileInfo fileInfo;
+       
+    if (fillDownloadInfo(frame, &fileInfo) != 0) {
+        printf("Error processing file info.\n");
+        return;
+    }
+
+    //printf("File Name: %s ", fileInfo.fileName);
+    //printf(" File Size: %d bytes ", fileInfo.fileSize);
+    //printf(" MD5 Sum: %s ", fileInfo.md5sum);
+    //printf(" Song ID: %d ", fileInfo.songId);
+
+        // nou thread pels Downloads
+    FileInfo *threadInfo = malloc(sizeof(FileInfo));
+    *threadInfo = fileInfo;
+    pthread_t downloadThread;
+    if (pthread_create(&downloadThread, NULL, downloadSongs, threadInfo) != 0) {
+        perror("Error creating download thread");
+    
+    }
+    //pthread_join(downloadThread,NULL);
+  
+
+}
+
+
+void *socketListener() {
+    //printf("Entrant a socketListener.\n");
+    while (1) {
+        Frame frame;
+        pthread_mutex_unlock(&socket_mutex); 
+        int readStatus = receive_frame(sockfd_poole, &frame);
+        //print_frame(&frame);
+        pthread_mutex_lock(&socket_mutex); 
+
+        if (readStatus < 0) {
+            printF("Error");
+            break;
+        }
+
+        if (strcmp(frame.header, "SONGS_RESPONSE") == 0) {
+            processSongsResponse(&frame);
+        } else if (strcmp(frame.header, "PLAYLISTS_RESPONSE") == 0) {
+            processPlaylistsResponse(&frame);
+        } else if (strcmp(frame.header, "NEW_FILE") == 0) {
+                printf("Download started!\n");
+
+            processFileResponse(&frame); 
+            pthread_mutex_lock(&socket_mutex); 
+            //write(1,"LOCK,\n",sizeof("LOCK\n"));
+
+        } else if (strcmp(frame.header, "FILE_DATA") == 0) {
+            print_frame(&frame);
+        }
+
+        free(frame.header);
+        free(frame.data);
+       
+
+    }
+     printf("sortintd de de socketListener.\n");
+    return NULL;
+}
+
+int connectToPoole(char *tokens[]) {
+    
+
+    if (!tokens[1] || !tokens[2]) {
+        printf("Error: Información de Poole no disponible.\n");
+        return 0;
+    }
+
     char *ipPoole = tokens[1];
     uint16_t portPoole = (uint16_t)strtoul(tokens[2],NULL,10);    //eL STRTOUL converteix la cadena en un valor numeric
     
@@ -248,245 +332,96 @@ void connectToPoole(char *tokens[]) {
         exit(EXIT_FAILURE);
         close(sockfd_poole); //Per si acas
     }
+    send(sockfd_poole, frame_buffer, FRAME_SIZE, 0); 
+    Frame frameAcknowledge;
+    if (receive_frame(sockfd_poole, &frameAcknowledge) < 0) {
+        perror("Error al leer respuesta de Poole");
+        close(sockfd_poole);
+        return 0;
+    }
+ 
 
-    
-    send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);
-
-    char info[256];
-    read(sockfd_poole, info, 256);
-    
-    //Frame frameAcknoledge;
-    //printaAcknowledge(info,&frameAcknoledge);
-    //print_frame(&frameAcknoledge);
-
-}
-
-void freeMemory(Bowman* bowmaneta, int numUsuaris){
-    int i;
-    for(i=0; i<numUsuaris; i++){
-        free(bowmaneta[i].fullName);
-        free(bowmaneta[i].pathName);
-        free(bowmaneta[i].ipDiscovery);
+    if (strcmp(frameAcknowledge.header, "CON_OK") == 0) {
+        // LA Connexio amb Poole es bona, per tant, llancem thread per escoltar trames.
+        pthread_t listenerThread;
+        if (pthread_create(&listenerThread, NULL, socketListener, NULL) != 0) {
+            perror("Error al crear el hilo de escucha");
+            
+            close(sockfd_poole);
+            return 0;
+        }
+        return 1;
+    }
+    else{
         
+        close(sockfd_poole);
+        return 0;
     }
-    free(bowmaneta);
-}
 
-void printInfo(Bowman* bowmaneta){
-    int i;
-    char *buffer;
-    for(i=0;i<1;i++){
-        asprintf(&buffer,"%s user initialized\n", bowmaneta[i].fullName);  
-        write(STDOUT_FILENO, buffer, strlen(buffer));   
-        free(buffer);   
-    }
 }
 
 int connectBowman(char *tokens[MAX_TOKENS]){ 
     connectDiscovery(tokens);
     printF(" connected to HAL 9000 system, welcome music lover!\n");
-    connectToPoole(tokens);
+    return connectToPoole(tokens);
       
-    return 1; 
 }
 
-void *controleCommandsWrapper(void *args) {
-    ThreadArgs *threadArgs = (ThreadArgs *)args;
-    int result = controleCommands(threadArgs->whichCommand, &(threadArgs->connectedOrNot));
-    threadArgs->connectedOrNot=result;
-    return (void *)(intptr_t)result;
-}
-
-int receiveFileData(int sockfd, int fd_song, ssize_t fileSize) {
-    Frame incoming_frame;
-    int fileCompleted = 0;
-    ssize_t totalBytesReceived = 0;
-
-    //printf("Inicio de receiveFileData. fileSize esperado: %zd bytes\n", fileSize);
-
-    while (!fileCompleted && totalBytesReceived < fileSize) {
-        incoming_frame.header = NULL;
-        incoming_frame.data = NULL;
-
-        int errorSocketOrNot = receive_frame(sockfd, &incoming_frame);
-        if (errorSocketOrNot < 0) {
-            perror("Error receiving frame");
-            break;
-        }
-
-        //printf("Frame recibido. Header: %s, Data size: %zd\n", incoming_frame.header, strlen(incoming_frame.data));
-
-        if (strcmp(incoming_frame.header, "FILE_DATA") == 0) {
-            int idAndSeparatorLength = sizeof(int) + 1;
-            char *fileDataStart = incoming_frame.data + idAndSeparatorLength;
-            ssize_t data_length = FRAME_SIZE - 3 - incoming_frame.header_length - idAndSeparatorLength;
-
-            if (totalBytesReceived + data_length > fileSize) {
-                data_length = fileSize - totalBytesReceived;
-            }
-
-            ssize_t bytes_written = write(fd_song, fileDataStart, data_length);
-            if (bytes_written == -1) {
-                perror("Error writing to file");
-                free(incoming_frame.header);
-                free(incoming_frame.data);
-                return -1;
-            }
-
-            totalBytesReceived += bytes_written;
-          //  printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, totalBytesReceived);
-        } 
-
-        free(incoming_frame.header);
-        free(incoming_frame.data);
+void listSongs(int *connectedOrNot) {
+    if(*connectedOrNot){
+        char frame_buffer[FRAME_SIZE] = {0};
+        fillFrame(frame_buffer,0x02,"LIST_SONGS"," ");
+        
+        send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
+         pthread_mutex_unlock(&socket_mutex);
     }
-
-    //printf("Total data received: %zd bytes\n", totalBytesReceived);
-    return (totalBytesReceived == fileSize) ? 0 : -1;
-}
-
-
-void *downloadSongs(void *arg) {
-    FileInfo *downloadInfo = (FileInfo *)arg;
-    printf("Iniciando downloadSongs. Descargando: %s, fileSize: %d\n", downloadInfo->fileName, downloadInfo->fileSize);
-
-    char songPath[PATH_MAX];
-    sprintf(songPath, "%s.mp3", downloadInfo->fileName);
-
-    int fd_song = open(songPath, O_WRONLY | O_CREAT | O_TRUNC, 0666);
-
-    if (fd_song == -1) {
-        perror("Error opening file for download");
-        free(downloadInfo->fileName);
-        free(downloadInfo->md5sum);
-        free(downloadInfo);
-        pthread_exit(NULL);
-        return NULL;
+    else{
+        printF("Cannot list, you are not connected to HAL 9000\n");
     } 
+}
 
-    if (receiveFileData(sockfd_poole, fd_song, downloadInfo->fileSize) == 0) {
-        printf("Download completed\n");  
 
-        char *calculated_md5 = calculateMD5(songPath);
-        if (calculated_md5 != NULL && strcmp(downloadInfo->md5sum, calculated_md5) == 0) {
-            write(1,"MD5 verification successful\n",sizeof("MD5 verification successful\n"));
-        } else {
-            write(1,"MD5 verification failed\n",sizeof("MD5 verification failed\n"));
-        }
-        free(calculated_md5);
-    } else {
-        printf("Download failed\n");  
+
+void listPlaylists(int *connectedOrNot) {
+     if(*connectedOrNot){
+        char frame_buffer[FRAME_SIZE] = {0};
+        fillFrame(frame_buffer,0x06,"LIST_PLAYLISTS"," ");
+
+        send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
+        pthread_mutex_unlock(&socket_mutex);
+
     }
-    close(fd_song);
-
-    free(downloadInfo->fileName);
-    free(downloadInfo->md5sum);
-    free(downloadInfo);
-   printf("Finalizando downloadSongs.\n");
-    pthread_exit(NULL);
-    return NULL;
+    else{
+        printF("Cannot list, you are not connected to HAL 9000\n");
+    }
 }
 
 
 void download(int *connectedOrNot, char *commandInput) {
-   // printf("Inicio de download.\n");
-    printf("Download started!\n");
-    
     if (*connectedOrNot == 1) {
         
         char *song_name = commandInput + strlen("DOWNLOAD ");
         if (strlen(song_name) == 0) {
-            printf("No song name provided\n");
+            printF("No song name provided\n");
             return;
         }
-
-        // Enviar la solicitud de descarga
         char frame_buffer[FRAME_SIZE] = {0};
         fillFrame(frame_buffer, 0x03, "DOWNLOAD_SONG", song_name);
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);
 
-        // Recibir información del archivo
-       // Frame file_info_frame;
-        //receive_frame(sockfd_poole, &file_info_frame);
-        //print_frame(&file_info_frame);
-        /*FileInfo downloadInfo;
-        if (fillDownloadInfo(file_info_frame, &downloadInfo) != 0) {
-            printf("Error en fillDownloadInfo.\n");
-           // free(file_info_frame.header);
-           // free(file_info_frame.data);
-            return;
-        }
-        write(1,"Jambele\n",sizeof("Jambele\n"));
-
-        //printf("Preparando para crear el hilo downloadSongs.\n");
-        FileInfo *threadInfo = malloc(sizeof(FileInfo));
-        *threadInfo = downloadInfo;
-        write(1,"Jambele\n",sizeof("Jambele\n"));
-
-        pthread_t t1;
-        int s = pthread_create(&t1, NULL, downloadSongs, threadInfo);
-        if (s != 0) {
-            printf("pthread_create failed\n");
-            free(threadInfo->fileName);
-            free(threadInfo->md5sum);
-            free(threadInfo);
-           // free(file_info_frame.header);
-            //free(file_info_frame.data);
-            exit(EXIT_FAILURE);
-        }
-        write(1,"Jambele\n",sizeof("Jambele\n"));*/
-
-        //pthread_join(t1, NULL);
-
-       // free(file_info_frame.header);
-       // free(file_info_frame.data);
-   //     printf("Fin de download.\n");
     } else {
-        printf("Not connected to HAL 9000\n");
+        printF("Not connected to HAL 9000\n");
     }
 }
 
 
-void download2(Frame *file_info_frame){
-    FileInfo downloadInfo;
-    if((strcasecmp("NEW_FILE",file_info_frame->header) == 0)){
 
-        if (fillDownloadInfo(file_info_frame, &downloadInfo) != 0) {
-            printf("Error en fillDownloadInfo.\n");
-            free(file_info_frame->header);
-            free(file_info_frame->data);
-            return;
-        }
-        //printf("Preparando para crear el hilo downloadSongs.\n");
-        FileInfo *threadInfo = malloc(sizeof(FileInfo));
-        *threadInfo = downloadInfo;
-
-        pthread_t t1;
-        int s = pthread_create(&t1, NULL, downloadSongs, threadInfo);
-        if (s != 0) {
-            printf("pthread_create failed\n");
-            free(threadInfo->fileName);
-            free(threadInfo->md5sum);
-            free(threadInfo);
-            free(file_info_frame->header);
-            free(file_info_frame->data);
-           // exit(EXIT_FAILURE);
-        }
-                
-       // void *res;
-       // pthread_join (t1,&res);
-    }
-}
-
-int controleCommands(char whichCommand[50],int *connectedOrNot) {
+int controleCommands(char *whichCommand, int *connectedOrNot) {
     int flag=0;
     char *whichCommand1,*whichCommand2;
     const char delimiter = ' ';
-    char *tokens[MAX_TOKENS];
-    int errorSocketOrNot=0;
     whichCommand1=strtok(whichCommand, &delimiter);
 
-    Frame incoming_frame;
    
         if(whichCommand1 != NULL){
             if((strcasecmp("CONNECT",whichCommand1) == 0) && *connectedOrNot == 0){//Segona condicio per que no es connecti mes d'un cop
@@ -501,7 +436,7 @@ int controleCommands(char whichCommand[50],int *connectedOrNot) {
             }
 
             if(strcasecmp("LOGOUT",whichCommand1) == 0){//TODO F2
-                logout();
+                //logout();
                 return 0;
             }
 
@@ -509,49 +444,29 @@ int controleCommands(char whichCommand[50],int *connectedOrNot) {
                 whichCommand2=strtok(NULL, &delimiter);//Si li fiquem NULL començara la segona busqueda per on es va quedar cuan es va cridar per primer cop strtok
                 if(whichCommand2 != NULL){
                     if(strcasecmp("SONGS",whichCommand2) == 0){
-                                                listSongs(connectedOrNot); 
-
-                        errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
-                        if (errorSocketOrNot >= 0) {
-                        print_frame(&incoming_frame);
-
-                        }
+                        listSongs(connectedOrNot); 
                         flag=1;
                     }
                     else if(strcasecmp("PLAYLISTS",whichCommand2) == 0){
-                                                    listPlaylists(connectedOrNot);
-
-                        errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
-                        if (errorSocketOrNot >= 0) {
-                        print_frame(&incoming_frame);
-
-                        }
+                        listPlaylists(connectedOrNot);
                         flag=1;
                     }
                 }
             }
 
             if(strcasecmp(whichCommand1,"DOWNLOAD") == 0){ //TODO F3
-                write(1,"Jambele\n",sizeof("Jambele\n"));
-                //print_frame(&incoming_frame);
+                //write(1,"Jambele\n",sizeof("Jambele\n"));
                 download(connectedOrNot, whichCommand);
-                print_frame(&incoming_frame);
-                errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
-                print_frame(&incoming_frame);
-                 if (errorSocketOrNot >= 0) {
-                download2(&incoming_frame);
-
-                 }
                 flag=1; 
             }
 
             if(strcasecmp("CHECK",whichCommand1) == 0){//TODO F3
-                checkDownload(connectedOrNot);
+                //checkDownload(connectedOrNot);
                 flag=1;
             }
 
             if(strcasecmp("CLEAR",whichCommand1) == 0){//TODO F3
-                clearDownload(connectedOrNot);
+                //clearDownload(connectedOrNot);
                 flag=1;
             }
             
@@ -560,86 +475,52 @@ int controleCommands(char whichCommand[50],int *connectedOrNot) {
                 printF("ERROR: Please input a valid command.\n");
             }
         }
-  
-    if(*connectedOrNot==1){
-  //      print_frame(&incoming_frame);
-        //print_frame(&incoming_frame);
-     /*      print_frame(&incoming_frame);
 
-        errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
-        if (errorSocketOrNot >= 0) {
-           print_frame(&incoming_frame);
-            if(strcasecmp(whichCommand1,"DOWNLOAD") == 0){
-                write(1,"Jambolo\n",sizeof("Jambolo\n"));
-                download2(&incoming_frame);
-            }
-        } else {
-            perror("Error\n");
-        }*/
-        free(incoming_frame.header);
-        free(incoming_frame.data);
+        return 1;
+}
+
+
+void freeMemory(Bowman* bowmaneta, int numUsuaris){
+    int i;
+    for(i=0; i<numUsuaris; i++){
+        free(bowmaneta[i].fullName);
+        free(bowmaneta[i].pathName);
+        free(bowmaneta[i].ipDiscovery);
+        
     }
-   
-    return 1;
+    free(bowmaneta);
 }
 
-void kctrlc(){ 
-    freeMemory(bowmaneta, numUsuaris);
-    logout(); //SIGNAL CONTROL+C TODO: S'HAURA DE FER VARIABLE GLOBAL  crec EL FD SOCKET :int sockfd_poole 
-}
-
-int main(int argc, char *argv[]){
-   // char whichCommand[50];
-    //int connectedOrNot=0;    
-    
-    if (argc != 2){    //Llegir config.dat
-        printF("ERROR: Incorrect number of arguments\n");
+int main(int argc, char *argv[]) {
+    if (argc != 2) {
+        printf("ERROR: Incorrect number of arguments\n");
         return -1;
     }
-                
+
     bowmaneta = readTextFile(argv[1], &numUsuaris);
-    if (bowmaneta == NULL){   
+    if (bowmaneta == NULL) {   
         return -2;
     }
 
-    printInfo(bowmaneta);
-    signal(SIGINT, kctrlc);
 
-    int exitOrNot=1;
-    //int sockfd_poole=0;
-    ThreadArgs *args = malloc(sizeof(ThreadArgs));
-    if (!args) {
-        perror("Error al asignar memoria para args");
-        // close(newsock);
-       // continue;
-    }
-    args->connectedOrNot=0;
-
-    while(exitOrNot==1){   
-        /** 1R THREAD ESCOLTAR DE LA TERMINAL*/
-        int bytesLlegits;
-        write(1, "\n$", 3);
-        bytesLlegits = read(0,  args->whichCommand, 100); //TODO IMPORTANT*******************************************************************************************
-
-        /** 2N THREAD Pasar a interpretar quina comanda s'ha escrit per LA TERMINAL*/
-        args->whichCommand[bytesLlegits-1] = '\0';
-        //void *res;
-        pthread_t thread_id;
-        if (pthread_create(&thread_id, NULL, controleCommandsWrapper, (void *)args) != 0) { // exitOrNot=controleCommands(whichCommand,&connectedOrNot);  
-            perror("Error al crear thread");
-            free(args);
-            //close(newsock);
+    char *command;
+    int connectedOrNot = 0;
+    write(1, "\n$", 3);
+    while (1) {
+        /** 1R THREAD ESCOLTAR DE LA TERMINAL*/ //canvi fet que deien els becaris
+       
+        command = read_until(STDIN_FILENO, '\n'); // Leer el comando del usuario
+        if (command == NULL || strlen(command) == 0) {
+            free(command); 
+            continue; 
         }
-        printf ("Missatge des del main()\n");
-        //void *res;
-       // pthread_join (thread_id,&res);
-        //printf("Thread returns %d\n", (int)(intptr_t)res);
-      // exit ();
-
-        
+        controleCommands(command, &connectedOrNot);
+        write(1, "\n$", 3);
+        free(command); 
     }
 
-    //freeAndClose(poole_frame,sockfd,poolete,numUsuaris);
-    freeMemory(bowmaneta,numUsuaris); 
-    return 0;   
+   //lliberar memoria pero no entenc el numUsuaris??? TODO CANVIARHO
+
+    return 0;
 }
+

@@ -5,13 +5,9 @@ Bowman* bowmaneta;
 int numUsuaris;
 char *tokens[MAX_TOKENS];
 int sockfd_poole;
-<<<<<<< HEAD
 int isConnectedToPoole = 0;
 
 pthread_mutex_t socket_mutex = PTHREAD_MUTEX_INITIALIZER;
-=======
-static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
->>>>>>> origin/main
 
 
 int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
@@ -371,7 +367,6 @@ int connectBowman(char *tokens[MAX_TOKENS]){
       
 }
 
-<<<<<<< HEAD
 void listSongs(int *connectedOrNot) {
     if(*connectedOrNot){
         char frame_buffer[FRAME_SIZE] = {0};
@@ -379,58 +374,6 @@ void listSongs(int *connectedOrNot) {
         
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
          pthread_mutex_unlock(&socket_mutex);
-=======
-void *controleCommandsWrapper(void *args) {
-    ThreadArgs *threadArgs = (ThreadArgs *)args;
-    int result = controleCommands(threadArgs->whichCommand, &(threadArgs->connectedOrNot));
-    threadArgs->connectedOrNot=result;
-    return (void *)(intptr_t)result;
-}
-
-int receiveFileData(int sockfd, int fd_song, ssize_t fileSize) {
-    Frame incoming_frame;
-    int fileCompleted = 0;
-    ssize_t totalBytesReceived = 0;
-
-    //printf("Inicio de receiveFileData. fileSize esperado: %zd bytes\n", fileSize);
-
-    while (!fileCompleted && totalBytesReceived < fileSize) {
-        incoming_frame.header = NULL;
-        incoming_frame.data = NULL;
-pthread_mutex_lock(&mutex);
-                                              
-        int errorSocketOrNot = receive_frame(sockfd, &incoming_frame);
-        if (errorSocketOrNot < 0) {
-            perror("Error receiving frame");
-            break;
-        }
-  pthread_mutex_unlock(&mutex);
-        //printf("Frame recibido. Header: %s, Data size: %zd\n", incoming_frame.header, strlen(incoming_frame.data));
-
-        if (strcmp(incoming_frame.header, "FILE_DATA") == 0) {
-            int idAndSeparatorLength = sizeof(int) + 1;
-            char *fileDataStart = incoming_frame.data + idAndSeparatorLength;
-            ssize_t data_length = FRAME_SIZE - 3 - incoming_frame.header_length - idAndSeparatorLength;
-
-            if (totalBytesReceived + data_length > fileSize) {
-                data_length = fileSize - totalBytesReceived;
-            }
-
-            ssize_t bytes_written = write(fd_song, fileDataStart, data_length);
-            if (bytes_written == -1) {
-                perror("Error writing to file");
-                free(incoming_frame.header);
-                free(incoming_frame.data);
-                return -1;
-            }
-
-            totalBytesReceived += bytes_written;
-          //  printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, totalBytesReceived);
-        } 
-
-        free(incoming_frame.header);
-        free(incoming_frame.data);
->>>>>>> origin/main
     }
     else{
         printF("Cannot list, you are not connected to HAL 9000\n");
@@ -466,12 +409,6 @@ void download(int *connectedOrNot, char *commandInput) {
         fillFrame(frame_buffer, 0x03, "DOWNLOAD_SONG", song_name);
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);
 
-<<<<<<< HEAD
-=======
-        
-
-       
->>>>>>> origin/main
     } else {
         printF("Not connected to HAL 9000\n");
     }
@@ -479,38 +416,7 @@ void download(int *connectedOrNot, char *commandInput) {
 
 
 
-<<<<<<< HEAD
 int controleCommands(char *whichCommand, int *connectedOrNot) {
-=======
-        if (fillDownloadInfo(file_info_frame, &downloadInfo) != 0) {
-            printf("Error en fillDownloadInfo.\n");
-            free(file_info_frame->header);
-            free(file_info_frame->data);
-            return;
-        }
-        //printf("Preparando para crear el hilo downloadSongs.\n");
-        FileInfo *threadInfo = malloc(sizeof(FileInfo));
-        *threadInfo = downloadInfo;
-
-        pthread_t t1;
-        int s = pthread_create(&t1, NULL, downloadSongs, threadInfo);
-        if (s != 0) {
-            printf("pthread_create failed\n");
-            free(threadInfo->fileName);
-            free(threadInfo->md5sum);
-            free(threadInfo);
-            free(file_info_frame->header);
-            free(file_info_frame->data);
-           // exit(EXIT_FAILURE);Erfaes888
-        }
-                
-       // void *res;
-       // pthread_join (t1,&res);
-    }
-}
-
-int controleCommands(char whichCommand[50],int *connectedOrNot) {
->>>>>>> origin/main
     int flag=0;
     char *whichCommand1,*whichCommand2;
     const char delimiter = ' ';
@@ -539,34 +445,10 @@ int controleCommands(char whichCommand[50],int *connectedOrNot) {
                 if(whichCommand2 != NULL){
                     if(strcasecmp("SONGS",whichCommand2) == 0){
                         listSongs(connectedOrNot); 
-<<<<<<< HEAD
-=======
-                        pthread_mutex_lock(&mutex);
-
-                        errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
-                        if (errorSocketOrNot >= 0) {
-                            print_frame(&incoming_frame);
-
-                        }
-                        pthread_mutex_unlock(&mutex);
-
->>>>>>> origin/main
                         flag=1;
                     }
                     else if(strcasecmp("PLAYLISTS",whichCommand2) == 0){
                         listPlaylists(connectedOrNot);
-<<<<<<< HEAD
-=======
-                        pthread_mutex_lock(&mutex);
-
-                        errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
-                        if (errorSocketOrNot >= 0) {
-                            print_frame(&incoming_frame);
-
-                        }
-                        pthread_mutex_unlock(&mutex);
-
->>>>>>> origin/main
                         flag=1;
                     }
                 }
@@ -574,28 +456,7 @@ int controleCommands(char whichCommand[50],int *connectedOrNot) {
 
             if(strcasecmp(whichCommand1,"DOWNLOAD") == 0){ //TODO F3
                 //write(1,"Jambele\n",sizeof("Jambele\n"));
-<<<<<<< HEAD
                 download(connectedOrNot, whichCommand);
-=======
-                //print_frame(&incoming_frame);
-                download(connectedOrNot, whichCommand);
-                pthread_mutex_lock(&mutex);
-
-            //print_frame(&incoming_frame);
-                errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
-                pthread_mutex_unlock(&mutex);
-                print_frame(&incoming_frame);
-                if (errorSocketOrNot >= 0) {
-                    if(strcasecmp(whichCommand1,"DOWNLOAD") == 0){
-                        pthread_mutex_lock(&mutex);
-                        download2(&incoming_frame);
-                        pthread_mutex_unlock(&mutex);
-
-                    }
-                }
-                
-
->>>>>>> origin/main
                 flag=1; 
             }
 
@@ -608,19 +469,7 @@ int controleCommands(char whichCommand[50],int *connectedOrNot) {
                 //clearDownload(connectedOrNot);
                 flag=1;
             }
-            /*pthread_mutex_lock(&mutex);
-
-            //print_frame(&incoming_frame);
-            errorSocketOrNot = receive_frame(sockfd_poole, &incoming_frame);
-            pthread_mutex_unlock(&mutex);
-            print_frame(&incoming_frame);
-            if (errorSocketOrNot >= 0) {
-                if(strcasecmp(whichCommand1,"DOWNLOAD") == 0){
-                    download2(&incoming_frame);
-                }
-            }*/
             
-
 
             else if(flag==0){
                 printF("ERROR: Please input a valid command.\n");
@@ -658,7 +507,7 @@ int main(int argc, char *argv[]) {
     int connectedOrNot = 0;
     write(1, "\n$", 3);
     while (1) {
-        /** 1R THREAD ESCOLTAR DE LA TERMINAL*/ //canvi fet que deien els becaris
+        /* 1R THREAD ESCOLTAR DE LA TERMINAL/ //canvi fet que deien els becaris*/
        
         command = read_until(STDIN_FILENO, '\n'); // Leer el comando del usuario
         if (command == NULL || strlen(command) == 0) {
@@ -674,4 +523,3 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
-

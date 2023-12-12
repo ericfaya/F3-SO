@@ -259,11 +259,10 @@ void *socketListener() {
     //printf("Entrant a socketListener.\n");
     while (1) {
         Frame frame;
-        pthread_mutex_unlock(&socket_mutex); 
+                pthread_mutex_lock(&socket_mutex); 
+
         int readStatus = receive_frame(sockfd_poole, &frame);
         //print_frame(&frame);
-        pthread_mutex_lock(&socket_mutex); 
-
         if (readStatus < 0) {
             printF("Error");
             break;
@@ -274,7 +273,7 @@ void *socketListener() {
         } else if (strcmp(frame.header, "PLAYLISTS_RESPONSE") == 0) {
             processPlaylistsResponse(&frame);
         } else if (strcmp(frame.header, "NEW_FILE") == 0) {
-                printf("Download started!\n");
+            printf("Download started!\n");
 
             processFileResponse(&frame); 
             pthread_mutex_lock(&socket_mutex); 
@@ -283,6 +282,7 @@ void *socketListener() {
         } else if (strcmp(frame.header, "FILE_DATA") == 0) {
             print_frame(&frame);
         }
+        pthread_mutex_unlock(&socket_mutex); 
 
         free(frame.header);
         free(frame.data);
@@ -373,7 +373,6 @@ void listSongs(int *connectedOrNot) {
         fillFrame(frame_buffer,0x02,"LIST_SONGS"," ");
         
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
-         pthread_mutex_unlock(&socket_mutex);
     }
     else{
         printF("Cannot list, you are not connected to HAL 9000\n");
@@ -388,7 +387,6 @@ void listPlaylists(int *connectedOrNot) {
         fillFrame(frame_buffer,0x06,"LIST_PLAYLISTS"," ");
 
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
-        pthread_mutex_unlock(&socket_mutex);
 
     }
     else{

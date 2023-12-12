@@ -69,8 +69,7 @@ void *sendFileData(void *arg) {
     ssize_t totalBytesSent = 0;
     ssize_t readSize;
     while ((readSize = read(fd_file, buffer, data_capacity)) > 0) { 
-        usleep(500);
-
+        
         char frame_buffer[FRAME_SIZE] = {0};
   
         *(int *)(frame_buffer + 3 + header_len) = info->id;
@@ -82,7 +81,7 @@ void *sendFileData(void *arg) {
         fillFrame2(frame_buffer, 0x04, header, frame_buffer + 3 + header_len, frameDataSize);
         send(info->socket, frame_buffer, FRAME_SIZE, 0);
 
-        //printf("debug: enviats %zd bytes de data en aquest frame, total de data enviada: %zd bytes.\n", readSize, totalBytesSent);
+        printf("debug: enviats %zd bytes de data en aquest frame, total de data enviada: %zd bytes.\n", readSize, totalBytesSent);
         totalBytesSent += readSize;
     }
 
@@ -187,6 +186,7 @@ int handleBowmanConnection(int *newsock, int errorSocketOrNot, Frame *incoming_f
             fillFrame(frame_buffer, 0x04, "NEW_FILE", data_info);
             send(*newsock, frame_buffer, FRAME_SIZE, 0); //aquest l'envia bé
 
+            usleep(1000);
 
             FileTransferInfo *transferInfo = malloc(sizeof(FileTransferInfo));
             if (transferInfo == NULL) {

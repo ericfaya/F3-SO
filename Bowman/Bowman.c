@@ -71,6 +71,7 @@ void connectDiscovery(char *tokens[]){
     char *buffer;
 
     char frame_buffer[FRAME_SIZE] = {0};
+    
     fillFrame(frame_buffer,0x01,"NEW_BOWMAN",bowmaneta[0].fullName);
    
     struct sockaddr_in server_addr;    //sockaddr_in: struct defineix l’estructura que permet configurar diversos paràmetres del socket com IP, port
@@ -168,7 +169,7 @@ int receiveFileData(int sockfd, int fd_song, ssize_t fileSize) {
             }
 
             totalBytesReceived += bytes_written;
-            //printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, totalBytesReceived);
+            printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, totalBytesReceived);
         } 
 
 
@@ -176,7 +177,7 @@ int receiveFileData(int sockfd, int fd_song, ssize_t fileSize) {
         free(incoming_frame.data);
     }
 
-    //printf("Total data received: %zd bytes\n", totalBytesReceived);
+    printf("Total data received: %zd bytes\n", totalBytesReceived);
     return (totalBytesReceived == fileSize) ? 0 : -1;
 }
 
@@ -197,20 +198,23 @@ void *downloadSongs(void *arg) {
         pthread_exit(NULL);
         return NULL;
     } 
-    pthread_mutex_lock(&socket_mutex); 
-    pthread_mutex_lock(&socket_mutex); 
+    //pthread_mutex_lock(&socket_mutex); 
     int result = receiveFileData(sockfd_poole, fd_song, downloadInfo->fileSize);
-    pthread_mutex_unlock(&socket_mutex);
-    if (result == 1){
+   
+    if (result == 0){
         //printf("Download completed\n");  
 
         char *calculated_md5 = calculateMD5(songPath);
+        char frame_buffer[FRAME_SIZE] = {0};
         if (calculated_md5 != NULL && strcmp(downloadInfo->md5sum, calculated_md5) == 0) {
             write(1,"MD5 verification successful\n",sizeof("MD5 verification successful\n"));
-
+            fillFrame(frame_buffer,0x05,"CHECK_OK","");
         } else {
             write(1,"MD5 verification failed\n",sizeof("MD5 verification failed\n"));
-        }
+            fillFrame(frame_buffer,0x05,"CHECK_KO]","");
+        }    
+        send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);
+        pthread_mutex_unlock(&socket_mutex);
         free(calculated_md5);
     } else {
         printf("Download failed\n");  
@@ -277,12 +281,21 @@ void *socketListener() {
             printf("Download started!\n");
 
             processFileResponse(&frame); 
-            pthread_mutex_lock(&socket_mutex); 
+                        pthread_mutex_lock(&socket_mutex); 
+
+            //pthread_mutex_lock(&socket_mutex); 
             //write(1,"LOCK,\n",sizeof("LOCK\n"));
 
         } else if (strcmp(frame.header, "FILE_DATA") == 0) {
             print_frame(&frame);
         }
+
+        else if (strcmp(frame.header, "FINISH") == 0) {
+            print_frame(&frame);
+            //pthread_mutex_unlock(&socket_mutex); 
+        }
+
+
         pthread_mutex_unlock(&socket_mutex); 
 
         free(frame.header);

@@ -212,6 +212,21 @@ int handleBowmanConnection(int *newsock, int errorSocketOrNot, Frame *incoming_f
         } 
     }
     
+    else if (strcmp(incoming_frame->header, "CHECK_OK") == 0 || strcmp(incoming_frame->header, "CHECK_KO]") == 0)// NNNNNNNNNNNNNNNNNNNNNNEEEEEEEEEEEEEEEEEEEEEEEEWWWWWWWWWWWWWWWWWWWWWWW
+    {
+        //TODO,enviar un ack per que bowman sapiga que ha acabat?
+        char *buffer;
+        asprintf(&buffer,"Result MD5SUM– %s\n", incoming_frame->header);  
+        write(STDOUT_FILENO, buffer, strlen(buffer));   
+        free(buffer);    
+
+
+        char frame_buffer[FRAME_SIZE];        // Enviar la trama ACK INVENTADA
+
+        fillFrame(frame_buffer, 0x08, "FINISH", "");
+        send(*newsock, frame_buffer, FRAME_SIZE, 0); //aquest l'envia bé
+
+    }
 
     else if (strcmp(incoming_frame->header, "EXIT") == 0)
     {

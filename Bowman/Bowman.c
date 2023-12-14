@@ -71,7 +71,6 @@ void connectDiscovery(char *tokens[]){
     char *buffer;
 
     char frame_buffer[FRAME_SIZE] = {0};
-    
     fillFrame(frame_buffer,0x01,"NEW_BOWMAN",bowmaneta[0].fullName);
    
     struct sockaddr_in server_addr;    //sockaddr_in: struct defineix l’estructura que permet configurar diversos paràmetres del socket com IP, port
@@ -119,15 +118,14 @@ void connectDiscovery(char *tokens[]){
 }
 
 void processSongsResponse(Frame *frame) {
-    printf("songs:\n");
+    printF("songs:\n");
     print_frame2(frame);
-    // Aquí podrías agregar lógica adicional para manejar los datos de las canciones
+   
 }
 
 void processPlaylistsResponse(Frame *frame) {
-    printf("playlists:\n");
+    printF("playlists:\n");
     print_frame2(frame);
-    // Aquí podrías agregar lógica adicional para manejar los datos de las playlists
 }
 
 int receiveFileData(int sockfd, int fd_song, ssize_t fileSize) {
@@ -169,7 +167,7 @@ int receiveFileData(int sockfd, int fd_song, ssize_t fileSize) {
             }
 
             totalBytesReceived += bytes_written;
-            printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, totalBytesReceived);
+            //printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, totalBytesReceived);
         } 
 
 
@@ -177,7 +175,7 @@ int receiveFileData(int sockfd, int fd_song, ssize_t fileSize) {
         free(incoming_frame.data);
     }
 
-    printf("Total data received: %zd bytes\n", totalBytesReceived);
+    //printf("Total data received: %zd bytes\n", totalBytesReceived);
     return (totalBytesReceived == fileSize) ? 0 : -1;
 }
 
@@ -198,26 +196,23 @@ void *downloadSongs(void *arg) {
         pthread_exit(NULL);
         return NULL;
     } 
-    //pthread_mutex_lock(&socket_mutex); 
+    pthread_mutex_lock(&socket_mutex); 
+    pthread_mutex_lock(&socket_mutex); 
     int result = receiveFileData(sockfd_poole, fd_song, downloadInfo->fileSize);
-   
-    if (result == 0){
+    pthread_mutex_unlock(&socket_mutex);
+    if (result == 1){
         //printf("Download completed\n");  
 
         char *calculated_md5 = calculateMD5(songPath);
-        char frame_buffer[FRAME_SIZE] = {0};
         if (calculated_md5 != NULL && strcmp(downloadInfo->md5sum, calculated_md5) == 0) {
             write(1,"MD5 verification successful\n",sizeof("MD5 verification successful\n"));
-            fillFrame(frame_buffer,0x05,"CHECK_OK","");
+
         } else {
             write(1,"MD5 verification failed\n",sizeof("MD5 verification failed\n"));
-            fillFrame(frame_buffer,0x05,"CHECK_KO]","");
-        }    
-        send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);
-        pthread_mutex_unlock(&socket_mutex);
+        }
         free(calculated_md5);
     } else {
-        printf("Download failed\n");  
+        printF("Download failed\n");  
     }
    
     
@@ -239,7 +234,7 @@ void processFileResponse(Frame *frame) {
     FileInfo fileInfo;
        
     if (fillDownloadInfo(frame, &fileInfo) != 0) {
-        printf("Error processing file info.\n");
+        perror("Error processing file info.\n");
         return;
     }
 
@@ -264,46 +259,33 @@ void *socketListener() {
     //printf("Entrant a socketListener.\n");
     while (1) {
         Frame frame;
-                pthread_mutex_lock(&socket_mutex); 
-
+        pthread_mutex_lock(&socket_mutex);
         int readStatus = receive_frame(sockfd_poole, &frame);
         //print_frame(&frame);
+        pthread_mutex_unlock(&socket_mutex); 
+
         if (readStatus < 0) {
             printF("Error");
             break;
         }
 
-        if (strcmp(frame.header, "SONGS_RESPONSE") == 0) {
-            processSongsResponse(&frame);
-        } else if (strcmp(frame.header, "PLAYLISTS_RESPONSE") == 0) {
-            processPlaylistsResponse(&frame);
-        } else if (strcmp(frame.header, "NEW_FILE") == 0) {
-            printf("Download started!\n");
-
-            processFileResponse(&frame); 
-                        pthread_mutex_lock(&socket_mutex); 
-
-            //pthread_mutex_lock(&socket_mutex); 
-            //write(1,"LOCK,\n",sizeof("LOCK\n"));
-
-        } else if (strcmp(frame.header, "FILE_DATA") == 0) {
-            print_frame(&frame);
+        if (strcmp(frame.header, "FILE_DATA") != 0) {
+            if (strcmp(frame.header, "SONGS_RESPONSE") == 0) {
+                processSongsResponse(&frame);
+            } else if (strcmp(frame.header, "PLAYLISTS_RESPONSE") == 0) {
+                processPlaylistsResponse(&frame);
+            } else if (strcmp(frame.header, "NEW_FILE") == 0) {
+                processFileResponse(&frame);
+            }
+           
         }
-
-        else if (strcmp(frame.header, "FINISH") == 0) {
-            print_frame(&frame);
-            //pthread_mutex_unlock(&socket_mutex); 
-        }
-
-
-        pthread_mutex_unlock(&socket_mutex); 
 
         free(frame.header);
         free(frame.data);
        
 
     }
-     printf("sortintd de de socketListener.\n");
+     
     return NULL;
 }
 
@@ -311,7 +293,6 @@ int connectToPoole(char *tokens[]) {
     
 
     if (!tokens[1] || !tokens[2]) {
-        printf("Error: Información de Poole no disponible.\n");
         return 0;
     }
 
@@ -387,6 +368,7 @@ void listSongs(int *connectedOrNot) {
         fillFrame(frame_buffer,0x02,"LIST_SONGS"," ");
         
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
+         pthread_mutex_unlock(&socket_mutex);
     }
     else{
         printF("Cannot list, you are not connected to HAL 9000\n");
@@ -401,6 +383,7 @@ void listPlaylists(int *connectedOrNot) {
         fillFrame(frame_buffer,0x06,"LIST_PLAYLISTS"," ");
 
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
+        pthread_mutex_unlock(&socket_mutex);
 
     }
     else{
@@ -426,7 +409,62 @@ void download(int *connectedOrNot, char *commandInput) {
     }
 }
 
+void logoutDiscovery(){
+    char frame_buffer[FRAME_SIZE] = {0};
+    fillFrame(frame_buffer,0x06,"EXIT",tokens[0]);
 
+    struct sockaddr_in server_addr;    //sockaddr_in: struct defineix l’estructura que permet configurar diversos paràmetres del socket com IP, port
+    memset(&server_addr, 0, sizeof(server_addr));//Inicialitza,fica 0s a l'estructura
+    server_addr.sin_family = AF_INET;//tipus de familia de socket es tracta
+    server_addr.sin_port = htons(bowmaneta[0].portDiscovery);//(Host To Network Short) Converteix port a big endian
+
+  
+   
+    if (inet_pton(AF_INET, bowmaneta[0].ipDiscovery, &server_addr.sin_addr) < 0) { //Converteix representació en text de la ip a l’equivalent binari (IPv4)
+        perror("Invalid address/ Address not supported");
+        //fer free de memoria dinamica
+        exit(EXIT_FAILURE);
+    }
+
+    int sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP); // SOCK_STREAM protocol tcp orientat a connexio//AF_INET familia IPV4
+    if (sockfd < 0) {
+        perror("Cannot create socket");
+        exit(EXIT_FAILURE);
+    }
+
+    if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Connection Failed");
+        //fer free de memoria dinamica
+        exit(EXIT_FAILURE);
+        close(sockfd); //Per si acas
+    }
+
+    send(sockfd, frame_buffer, FRAME_SIZE, 0);
+    close(sockfd);
+}
+
+void logout(){
+    logoutDiscovery(); //A tokens li envia el nom del servidor
+    
+    char frame_buffer[FRAME_SIZE] = {0};
+    fillFrame(frame_buffer,0x02,"EXIT",bowmaneta[0].fullName);
+
+    send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
+    
+    char info[256];
+    int errorSocketOrNot=read(sockfd_poole, info, 256);//bowman recibe from poole
+    Frame frameAcknoledge;
+    printaAcknowledge(info,&frameAcknoledge);
+   // char *header;
+    if(errorSocketOrNot!=-1 ){
+
+        if(strcmp(frameAcknoledge.header,"[CON_OK]")){
+            close(sockfd_poole);//Crec que no es tindra que fer perque sino es tanca la comunicacio
+            printF("Thanks for using HAL 9000, see you soon, music lover!\n");
+            exit(0);
+        }//ELSE //  header = "CON_KO";
+    }   
+}
 
 int controleCommands(char *whichCommand, int *connectedOrNot) {
     int flag=0;
@@ -448,7 +486,7 @@ int controleCommands(char *whichCommand, int *connectedOrNot) {
             }
 
             if(strcasecmp("LOGOUT",whichCommand1) == 0){//TODO F2
-                //logout();
+                logout();
                 return 0;
             }
 
@@ -505,7 +543,7 @@ void freeMemory(Bowman* bowmaneta, int numUsuaris){
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
-        printf("ERROR: Incorrect number of arguments\n");
+        printF("ERROR: Incorrect number of arguments\n");
         return -1;
     }
 

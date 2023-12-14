@@ -1,5 +1,6 @@
 #ifndef FRAME_H_
 #define FRAME_H_
+#define _GNU_SOURCE
 
 #include <arpa/inet.h>
 #include <netinet/in.h>

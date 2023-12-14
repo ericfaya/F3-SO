@@ -45,7 +45,7 @@ void sendPlayListResponse(int socket) {
 
 void *sendFileData(void *arg) {
     FileTransferInfo *info = (FileTransferInfo *)arg;
-    printf("Depuracio: iniciant send del l'arxiu: '%s'.\n", info->filePath);
+ 
 
     int fd_file = open(info->filePath, O_RDONLY);
     if (fd_file == -1) {
@@ -81,7 +81,7 @@ void *sendFileData(void *arg) {
         fillFrame2(frame_buffer, 0x04, header, frame_buffer + 3 + header_len, frameDataSize);
         send(info->socket, frame_buffer, FRAME_SIZE, 0);
 
-        printf("debug: enviats %zd bytes de data en aquest frame, total de data enviada: %zd bytes.\n", readSize, totalBytesSent);
+        
         totalBytesSent += readSize;
     }
 
@@ -89,7 +89,7 @@ void *sendFileData(void *arg) {
         perror("Error reading from the file");
     }
 
-    printf("debug:  '%s' completat. Total enviaat: %zd bytes.\n", info->filePath, totalBytesSent);
+   
     close(fd_file);
     free(info);
     return NULL;
@@ -261,7 +261,6 @@ void *clientHandler(void *args) {
 
 
         if (exitOrNot == -1) {
-            printf("Debug: Cliente solicita tenca cpnexio\n");
             break;
         }
     }

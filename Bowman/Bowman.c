@@ -139,6 +139,7 @@ int receiveFileData(int sockfd, int fd_song, ssize_t fileSize) {
         incoming_frame.data = NULL;
                                      
         int errorSocketOrNot = receive_frame(sockfd, &incoming_frame);
+        print_frame3(&incoming_frame);
         if (errorSocketOrNot < 0) {
                         printF("Error receiving frame");
 
@@ -167,7 +168,7 @@ int receiveFileData(int sockfd, int fd_song, ssize_t fileSize) {
             }
 
             totalBytesReceived += bytes_written;
-            //printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, totalBytesReceived);
+            printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, totalBytesReceived);
         } 
 
 
@@ -175,7 +176,7 @@ int receiveFileData(int sockfd, int fd_song, ssize_t fileSize) {
         free(incoming_frame.data);
     }
 
-    //printf("Total data received: %zd bytes\n", totalBytesReceived);
+    printf("Total data received: %zd bytes\n", totalBytesReceived);
     return (totalBytesReceived == fileSize) ? 0 : -1;
 }
 
@@ -196,11 +197,12 @@ void *downloadSongs(void *arg) {
         pthread_exit(NULL);
         return NULL;
     } 
-    pthread_mutex_lock(&socket_mutex); 
+
     pthread_mutex_lock(&socket_mutex); 
     int result = receiveFileData(sockfd_poole, fd_song, downloadInfo->fileSize);
     pthread_mutex_unlock(&socket_mutex);
-    if (result == 1){
+    
+    if (result == 0){
         //printf("Download completed\n");  
 
         char *calculated_md5 = calculateMD5(songPath);
@@ -215,8 +217,7 @@ void *downloadSongs(void *arg) {
         printF("Download failed\n");  
     }
    
-    
-    //write(1,"UNLOCK,\n",sizeof("UNLOCK\n"));
+     //write(1,"UNLOCK,\n",sizeof("UNLOCK\n"));
 
 
     close(fd_song);
@@ -243,7 +244,7 @@ void processFileResponse(Frame *frame) {
     //printf(" MD5 Sum: %s ", fileInfo.md5sum);
     //printf(" Song ID: %d ", fileInfo.songId);
 
-        // nou thread pels Downloads
+    // nou thread pels Downloads
     FileInfo *threadInfo = malloc(sizeof(FileInfo));
     *threadInfo = fileInfo;
     pthread_t downloadThread;
@@ -261,7 +262,7 @@ void *socketListener() {
         Frame frame;
         pthread_mutex_lock(&socket_mutex);
         int readStatus = receive_frame(sockfd_poole, &frame);
-        //print_frame(&frame);
+        print_frame2(&frame);
         pthread_mutex_unlock(&socket_mutex); 
 
         if (readStatus < 0) {
@@ -276,13 +277,12 @@ void *socketListener() {
                 processPlaylistsResponse(&frame);
             } else if (strcmp(frame.header, "NEW_FILE") == 0) {
                 processFileResponse(&frame);
+                usleep(100000);
             }
-           
         }
 
         free(frame.header);
         free(frame.data);
-       
 
     }
      

@@ -69,6 +69,7 @@ void *sendFileData(void *arg) {
     ssize_t totalBytesSent = 0;
     ssize_t readSize;
     while ((readSize = read(fd_file, buffer, data_capacity)) > 0) { 
+        usleep(300);
         
         char frame_buffer[FRAME_SIZE] = {0};
   

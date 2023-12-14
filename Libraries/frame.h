@@ -32,6 +32,7 @@ int build_frame2(Frame *frame, uint8_t type, char *header, char *data, size_t da
 int receive_frame(int sockfd, Frame *frame);
 void print_frame(Frame *frame);
 void print_frame2(Frame *frame);
+void print_frame3(Frame *frame);
 void pad_frame(Frame *frame, char *frame_buffer);
 void pad_frame2(Frame *frame, char *frame_buffer, size_t data_len);
 void splitFrame(Frame *frame,char *tokens[]);

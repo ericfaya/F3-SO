@@ -129,15 +129,21 @@ void print_frame(Frame *frame) {
 }
 
 void print_frame2(Frame *frame) {
-    char *buffer;
-    //asprintf(&buffer,"\nReading configuration file\nConnecting %s Server to the system..\nConnected to HAL 9000 System, ready to listen to Bowmans petitions\n\nWaiting for connections...\n\n", userName2);  
+    printf ("\nENTRA PEL SOCKET_LISTENER");
     
-    //printf("Type: 0x%02X\n", frame->type);
-   // printf("Header Length: %u\n", frame->header_length); 
-    //printf("Header: %s\n", frame->header);
-    asprintf(&buffer,"Data: %s\n", frame->data);
-    write(STDOUT_FILENO, buffer, strlen(buffer));   
-    free(buffer);
+    printf("Type: 0x%02X\n", frame->type);
+    printf("Header Length: %u\n", frame->header_length); 
+    printf("Header: %s\n", frame->header);
+    printf("Data: %s\n", frame->data);
+}
+
+void print_frame3(Frame *frame) {
+    printf ("\nENTRA PEL THREAD DOWNLOAD");
+    
+    printf("Type: 0x%02X\n", frame->type);
+    printf("Header Length: %u\n", frame->header_length); 
+    printf("Header: %s\n", frame->header);
+    printf("Data: %s\n", frame->data);
 }
 
 void pad_frame(Frame *frame, char *frame_buffer) {

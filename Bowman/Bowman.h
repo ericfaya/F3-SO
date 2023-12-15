@@ -17,6 +17,9 @@
 #include <ctype.h>
 #include <limits.h>
 #include <strings.h> 
+#include <sys/ipc.h>
+#include <sys/msg.h>
+
 #include "frame.h"
 #include "md5functions.h"
 
@@ -34,11 +37,17 @@ typedef struct {
     char *fileName;
     int fileSize;
     char *md5sum;
+    char *songPath;
     int songId;
     int fd_song;
+    ssize_t totalBytesReceived;
     Frame frame;
 } FileInfo;
 
+typedef struct {
+    long mtype;
+    Frame frame;
+}MessageQueue;
 
 void freeMemory(Bowman* bowmaneta,int numUsuaris);
 void printInfo(Bowman* bowmaneta);

@@ -69,7 +69,7 @@ void *sendFileData(void *arg) {
     ssize_t totalBytesSent = 0;
     ssize_t readSize;
     while ((readSize = read(fd_file, buffer, data_capacity)) > 0) { 
-        usleep(300);
+       // usleep(300);
         
         char frame_buffer[FRAME_SIZE] = {0};
   
@@ -82,7 +82,8 @@ void *sendFileData(void *arg) {
         fillFrame2(frame_buffer, 0x04, header, frame_buffer + 3 + header_len, frameDataSize);
         send(info->socket, frame_buffer, FRAME_SIZE, 0);
 
-        
+        //printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", readSize, totalBytesSent);
+
         totalBytesSent += readSize;
     }
 
@@ -187,7 +188,7 @@ int handleBowmanConnection(int *newsock, int errorSocketOrNot, Frame *incoming_f
             fillFrame(frame_buffer, 0x04, "NEW_FILE", data_info);
             send(*newsock, frame_buffer, FRAME_SIZE, 0); //aquest l'envia bé
 
-            usleep(1000);
+            //usleep(1000);
 
             FileTransferInfo *transferInfo = malloc(sizeof(FileTransferInfo));
             if (transferInfo == NULL) {
@@ -306,8 +307,6 @@ void connectToBowman(Poole *poolete) {
         exit(EXIT_FAILURE);
     }
 
-    
-
     while (1) {
 
         struct sockaddr_in c_addr;
@@ -317,8 +316,6 @@ void connectToBowman(Poole *poolete) {
             perror("accept");
             continue;  
         }
-
-
       
         ThreadArgs *args = malloc(sizeof(ThreadArgs));
         if (!args) {
@@ -432,7 +429,6 @@ int main(int argc, char *argv[]){
     asprintf(&buffer,"\nReading configuration file\nConnecting %s Server to the system..\nConnected to HAL 9000 System, ready to listen to Bowmans petitions\n\nWaiting for connections...\n\n", userName2);  
     write(STDOUT_FILENO, buffer, strlen(buffer));   
     free(buffer);
-    
 
     connectToBowman(poolete);
 

@@ -145,6 +145,22 @@ void print_frame3(Frame *frame) {
     printf("Header: %s\n", frame->header);
     printf("Data: %s\n", frame->data);
 }
+void print_frame4(Frame *frame) {
+    printf ("\nENTRA PEL QUEUE MESSAGE");
+    
+    printf("Type: 0x%02X\n", frame->type);
+    printf("Header Length: %u\n", frame->header_length); 
+    printf("Header: %s\n", frame->header);
+    printf("Data: %s\n", frame->data);
+}
+void print_frame5(Frame *frame) {
+    printf ("\nSURT PEL QUEUE MESSAGE");
+    
+    printf("Type: 0x%02X\n", frame->type);
+    printf("Header Length: %u\n", frame->header_length); 
+    printf("Header: %s\n", frame->header);
+    printf("Data: %s\n", frame->data);
+}
 
 void pad_frame(Frame *frame, char *frame_buffer) {
     frame_buffer[0] = frame->type; // Copiar type

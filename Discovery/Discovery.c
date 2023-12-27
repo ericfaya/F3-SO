@@ -3,7 +3,11 @@
 #include "PooleList.h"
 
 void enviarAcknowledge(int newsock,int errorSocketOrNot,int bowmanOrPoole,PooleList *pooleList) {
+<<<<<<< HEAD
     printf("Depuración: Enviar Acknowledge\n");
+=======
+   
+>>>>>>> 7636aa34def46fe1c4ce4f8d435ee6cd16be9812
     char *header;
     if(errorSocketOrNot==-1 ){
         header = "[CON_KO]";
@@ -30,7 +34,11 @@ void enviarAcknowledge(int newsock,int errorSocketOrNot,int bowmanOrPoole,PooleL
     fillFrame(frame_buffer,0x01,header,data2);
 
     write(newsock, frame_buffer, 256);
+<<<<<<< HEAD
     printf("Depuración: Acknowledge enviado, cerrando socket: %d\n", newsock);
+=======
+   
+>>>>>>> 7636aa34def46fe1c4ce4f8d435ee6cd16be9812
     close(newsock);
 }
 
@@ -56,7 +64,11 @@ void freeAndClose(PooleList *pooleList,int sockfd_poole,int sockfd_bowman){
 }
 
 void waitSocketPoole(int sockfd_poole,PooleList *pooleList){
+<<<<<<< HEAD
      printf("Depuración: Esperando conexión de Poole\n");
+=======
+     
+>>>>>>> 7636aa34def46fe1c4ce4f8d435ee6cd16be9812
     struct sockaddr_in c_addr;
     socklen_t c_len = sizeof(c_addr);
     int newsock = accept(sockfd_poole, (struct sockaddr *)&c_addr, &c_len);
@@ -72,7 +84,11 @@ void waitSocketPoole(int sockfd_poole,PooleList *pooleList){
 }
 
 void waitSocketBowman(int sockfd_bowman,PooleList *pooleList){
+<<<<<<< HEAD
     printf("Depuración: Esperando conexión de Bowman\n");
+=======
+    
+>>>>>>> 7636aa34def46fe1c4ce4f8d435ee6cd16be9812
     struct sockaddr_in c_addr;
     socklen_t c_len = sizeof(c_addr);
     int newsock = accept(sockfd_bowman, (struct sockaddr *)&c_addr, &c_len);
@@ -95,10 +111,7 @@ int main(int argc, char *argv[]) {
     int numUsuaris;
 
     if (argc < 2) {
-        char *buffer;
-        asprintf(&buffer,"Usage: %s <Poole port> <Bowman port>\n", argv[0]);  
-        write(STDOUT_FILENO, buffer, strlen(buffer));   
-        free(buffer);
+        printF("ERROR: Incorrect number of argumentradas\n");   
         exit(EXIT_FAILURE);
     }
     discovery = readTextFile(argv[1], &numUsuaris);

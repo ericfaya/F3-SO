@@ -5,7 +5,7 @@ Bowman* bowmaneta;
 int numUsuaris;
 char *tokens[MAX_TOKENS];
 int sockfd_poole;
-int isConnectedToPoole = 0;
+int isConnectedToPoole = 0;Erfaes888
 
 pthread_mutex_t socket_mutex = PTHREAD_MUTEX_INITIALIZER;
 

@@ -43,11 +43,15 @@ void sendPlayListResponse(int socket) {
 }
 
 
-void sendFileData(int socket, const char *file_path, int idNumRandom) {
-    int fd_file = open(file_path, O_RDONLY);
+void *sendFileData(void *arg) {
+    FileTransferInfo *info = (FileTransferInfo *)arg;
+ 
+
+    int fd_file = open(info->filePath, O_RDONLY);
     if (fd_file == -1) {
         perror("Error opening file");
-        return;
+        free(info);
+        return NULL;
     }
 
     char *header = "FILE_DATA";
@@ -58,7 +62,8 @@ void sendFileData(int socket, const char *file_path, int idNumRandom) {
     if (!buffer) {
         perror("Failed to allocate memory for buffer");
         close(fd_file);
-        return;
+        free(info);
+        return NULL;
     }
 
     ssize_t totalBytesSent = 0;
@@ -66,39 +71,28 @@ void sendFileData(int socket, const char *file_path, int idNumRandom) {
     while ((readSize = read(fd_file, buffer, data_capacity)) > 0) {
         //usleep(1000);
         char frame_buffer[FRAME_SIZE] = {0};
-
-        // Preparar el frame con ID y datos
-        *(int *)(frame_buffer + 3 + header_len) = idNumRandom;
+  
+        *(int *)(frame_buffer + 3 + header_len) = info->id;
         frame_buffer[3 + header_len + sizeof(int)] = '&';
         memcpy(frame_buffer + 3 + header_len + sizeof(int) + 1, buffer, readSize);
 
-        // Enviar el frame
+      
         ssize_t frameDataSize = readSize + sizeof(int) + 1; // Tamaño de los datos en el frame
         fillFrame2(frame_buffer, 0x04, header, frame_buffer + 3 + header_len, frameDataSize);
-        send(socket, frame_buffer, FRAME_SIZE, 0);
+        send(info->socket, frame_buffer, FRAME_SIZE, 0);
 
-        // Mostrar bytes de datos enviados
+        //printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", readSize, totalBytesSent);
+
         totalBytesSent += readSize;
-        //printf("Sent %zd bytes of data in this frame, total data sent: %zd bytes\n", readSize, totalBytesSent);
     }
 
     if (readSize == -1) {
         perror("Error reading from the file");
     }
 
-    // Enviar el frame final para indicar el fin del archivo
-   // char final_frame_buffer[FRAME_SIZE] = {0};
-    //fillFrame2(final_frame_buffer, 0x04, "FILE_END", "", 0);
-    //send(socket, final_frame_buffer, FRAME_SIZE, 0);
-
-    free(buffer);
+   
     close(fd_file);
-}
-
-void *sendFileDataWrapper(void *args) {
-    ThreadArgs2 *threadArgs = (ThreadArgs2 *)args;
-     sendFileData(threadArgs->socket, threadArgs->path_found, threadArgs->idNumRandom);
-    //threadArgs->connectedOrNot=result;
+    free(info);
     return NULL;
 }
 
@@ -125,7 +119,7 @@ int handleBowmanConnection(int *newsock, int errorSocketOrNot, Frame *incoming_f
         return -1;
     }
 
-   
+
     if (strcmp(incoming_frame->header, "NEW_BOWMAN") == 0) { 
         char *buffer;
         asprintf(&buffer,"New user connected: %s.\n\n...", incoming_frame->data);  
@@ -192,31 +186,48 @@ int handleBowmanConnection(int *newsock, int errorSocketOrNot, Frame *incoming_f
 
             fillFrame(frame_buffer, 0x04, "NEW_FILE", data_info);
             send(*newsock, frame_buffer, FRAME_SIZE, 0); //aquest l'envia bé
-            
 
-            ThreadArgs2 *args = malloc(sizeof(ThreadArgs2));
-            if (!args) {
-                perror("Error al asignar memoria para args");
-                // close(newsock);
-            // continue;
-            }
-            args->path_found=path_found;
-            args->socket = *newsock;
-            args->idNumRandom =idNumRandom;
+            //usleep(1000);
 
-            pthread_t thread_id;
-            if (pthread_create(&thread_id, NULL, sendFileDataWrapper, (void *)args) != 0) {   //sendFileData(*newsock, path_found,idNumRandom);
-                perror("Error al crear thread");
-                free(args);
-                //close(newsock);
+            FileTransferInfo *transferInfo = malloc(sizeof(FileTransferInfo));
+            if (transferInfo == NULL) {
+                perror("Error allocating memory for file transfer info");
+                // Manejar error
+                return -1;
             }
-           
+
+            transferInfo->socket = *newsock;
+            strncpy(transferInfo->filePath, path_found, PATH_MAX);
+            transferInfo->id = idNumRandom;
+
+            pthread_t fileTransferThread;
+            if (pthread_create(&fileTransferThread, NULL, sendFileData, transferInfo) != 0) {
+                perror("Error creating file transfer thread");
+                // Manejar error
+                free(transferInfo);
+                return -1;
+            }
 
             free(data_info); 
             free(md5sum);    
         } 
     }
     
+    else if (strcmp(incoming_frame->header, "CHECK_OK") == 0 || strcmp(incoming_frame->header, "CHECK_KO]") == 0)// NNNNNNNNNNNNNNNNNNNNNNEEEEEEEEEEEEEEEEEEEEEEEEWWWWWWWWWWWWWWWWWWWWWWW
+    {
+        //TODO,enviar un ack per que bowman sapiga que ha acabat?
+        char *buffer;
+        asprintf(&buffer,"Result MD5SUM– %s\n", incoming_frame->header);  
+        write(STDOUT_FILENO, buffer, strlen(buffer));   
+        free(buffer);    
+
+
+        char frame_buffer[FRAME_SIZE];        // Enviar la trama ACK INVENTADA
+
+        fillFrame(frame_buffer, 0x08, "FINISH", "");
+        send(*newsock, frame_buffer, FRAME_SIZE, 0); //aquest l'envia bé
+
+    }
 
     else if (strcmp(incoming_frame->header, "EXIT") == 0)
     {
@@ -251,7 +262,6 @@ void *clientHandler(void *args) {
 
 
         if (exitOrNot == -1) {
-            printf("Debug: Cliente solicita tenca cpnexio\n");
             break;
         }
     }
@@ -296,8 +306,6 @@ void connectToBowman(Poole *poolete) {
         exit(EXIT_FAILURE);
     }
 
-    
-
     while (1) {
 
         struct sockaddr_in c_addr;
@@ -307,8 +315,6 @@ void connectToBowman(Poole *poolete) {
             perror("accept");
             continue;  
         }
-
-
       
         ThreadArgs *args = malloc(sizeof(ThreadArgs));
         if (!args) {
@@ -422,7 +428,6 @@ int main(int argc, char *argv[]){
     asprintf(&buffer,"\nReading configuration file\nConnecting %s Server to the system..\nConnected to HAL 9000 System, ready to listen to Bowmans petitions\n\nWaiting for connections...\n\n", userName2);  
     write(STDOUT_FILENO, buffer, strlen(buffer));   
     free(buffer);
-    
 
     connectToBowman(poolete);
 

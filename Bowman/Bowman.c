@@ -149,7 +149,7 @@ void processPlaylistsResponse(Frame *frame) {
 }
 
 int writeBinaryFile(Frame incoming_frame,FileInfo *downloadInfo) {
-    write(1,"*********************",sizeof("*********************"));
+    //write(1,"*********************",sizeof("*********************"));
     int idAndSeparatorLength = sizeof(int) + 1;
     char *fileDataStart = incoming_frame.data + idAndSeparatorLength;
     ssize_t data_length = FRAME_SIZE - 3 - incoming_frame.header_length - idAndSeparatorLength;
@@ -167,6 +167,7 @@ int writeBinaryFile(Frame incoming_frame,FileInfo *downloadInfo) {
         free(incoming_frame.data);
         return -1;
     }
+    
     //printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, downloadInfo->totalBytesReceived);
     downloadInfo->totalBytesReceived += bytes_written;
 
@@ -178,17 +179,17 @@ int receiveFileData( FileInfo *downloadInfo) {
 
 
     MessageQueue msg;
-        printf("\n\nRebo per la cua %d + id bustia : %d ",downloadInfo->id_queue,downloadInfo->id_bustia);
-
+//usleep(200000000);
     while (downloadInfo->totalBytesReceived < downloadInfo->fileSize) {
        // usleep(1000);
    
+        printf("\n\nRebo per la cua %d + id bustia : %d ",downloadInfo->id_queue,downloadInfo->id_bustia);
 
                if (msgrcv(downloadInfo->id_queue, &msg, sizeof(MessageQueue)- sizeof(long) , downloadInfo->id_bustia, 0) != -1) {// if (msgrcv(downloadInfo->id_queue, &msg, sizeof(msg) - sizeof(long), downloadInfo->id_bustia, 0) != -1) {
-                printf("Rebo per la cua %d + id bustia : %ld ",downloadInfo->id_queue,msg.mtype);
-                printf("Receiving data: %s\n\n", msg.frame.data);
+                //printf("Rebo per la cua %d + id bustia : %ld ",downloadInfo->id_queue,msg.mtype);
+               // printf("Receiving data: %s\n\n", msg.frame.data);
 
-                print_frame5(&msg.frame);
+                //print_frame5(&msg.frame);
             //if (strcmp(msg.frame.header, "FILE_DATA") == 0) {
               //  print_frame5(&msg.frame);
                 if(writeBinaryFile(msg.frame,downloadInfo)==-1)
@@ -199,7 +200,7 @@ int receiveFileData( FileInfo *downloadInfo) {
         else{
             printF("Error al rewbre el mensaje\n");
         }
-        printf("Total data received: %zd bytes\n", downloadInfo->totalBytesReceived);
+        //printf("Total data received: %zd bytes\n", downloadInfo->totalBytesReceived);
     }
     
     return (downloadInfo->totalBytesReceived == downloadInfo->fileSize) ? 0 : -1;
@@ -224,17 +225,22 @@ void *downloadSongs(void *arg) {
         //printf("Download completed\n");  
 
         char *calculated_md5 = calculateMD5(downloadInfo->songPath);
+            printf("MD5 values match. Expected: %s, \nCalculated: %s\n and path %s", downloadInfo->md5sum, calculated_md5,downloadInfo->songPath);
+
         if (calculated_md5 != NULL && strcmp(downloadInfo->md5sum, calculated_md5) == 0) {
             write(1,"MD5 verification successful\n",sizeof("MD5 verification successful\n"));
+                close(downloadInfo->fd_song);
+
         } else {
             write(1,"MD5 verification failed\n",sizeof("MD5 verification failed\n"));
+                close(downloadInfo->fd_song);
+
         }
         free(calculated_md5);
-    } else {
+    }/* else {
         printF("Download failed\n");  
-    }
-   
-    close(downloadInfo->fd_song);
+    }*/
+       //close(downloadInfo->fd_song);
 
     return NULL;
 }
@@ -284,8 +290,6 @@ void messageQueue(Frame *frame,int mq_id,int id_bustia) {
         perror("Error al enviar el mensaje");
         exit(EXIT_FAILURE);
     }
-
-
 }
 
 void *socketListener(void *arg) {
@@ -296,18 +300,13 @@ void *socketListener(void *arg) {
         return NULL;  // or handle the error appropriately
     }
     int mq_id = args->mq_id;
-    /*MessageQueue *msg = args->msg;
-    if (msg == NULL) {
-        printF("Error: MessageQueue is NULL\n");
-        return NULL;  // or handle the error appropriately
-    }*/
 
     FileInfo *fileInfo = malloc(sizeof(FileInfo));
-    fileInfo->id_queue=mq_id;
+    fileInfo->id_queue = mq_id;
     printf("Envio per la cua %d + id bustia :\n\n", mq_id );
 
     while (1) {
-        usleep(1000);
+        //usleep(1000);
 
         Frame frame;
         if (receive_frame(sockfd_poole, &frame) < 0) {
@@ -336,6 +335,7 @@ void *socketListener(void *arg) {
            // sleep(5);
 
             messageQueue(&frame,mq_id,id_bustia);            //implementem cua de missatges;
+            usleep(2000);
         }
         
         free(frame.header);

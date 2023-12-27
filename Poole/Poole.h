@@ -20,6 +20,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <limits.h>
+#include <sys/param.h>
+
 
 #include "frame.h"
 #include "md5functions.h"
@@ -50,8 +52,16 @@ typedef struct {
     int idNumRandom;
 } ThreadArgs2;
 
+typedef struct {
+    int socket;
+    char filePath[PATH_MAX];
+    int id;
+} FileTransferInfo;
 
-void sendSongListResponse(int socket);
+
+
+
+
 int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_frame) ;
 void enviarAcknowledge(int newsock,int errorSocketOrNot);
 void printaAcknowledge(char buffer[256], Frame *frame) ; //Nomes es per debugar

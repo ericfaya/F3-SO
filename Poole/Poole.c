@@ -64,7 +64,7 @@ void sendFileData(int socket, const char *file_path, int idNumRandom) {
     ssize_t totalBytesSent = 0;
     ssize_t readSize;
     while ((readSize = read(fd_file, buffer, data_capacity)) > 0) {
-        usleep(1000);
+        //usleep(1000);
         char frame_buffer[FRAME_SIZE] = {0};
 
         // Preparar el frame con ID y datos

@@ -9,35 +9,6 @@ int isConnectedToPoole = 0;
 
 pthread_mutex_t socket_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-int extractIdFromFrame2(const Frame *frame) {
-    if (frame == NULL || frame->header_length <= 0 || frame->data == NULL) {
-        return -1; // Invalid frame or data
-    }
-
-    // Find the last occurrence of '&' in the data
-    char *lastAmpersand = strrchr(frame->data, '&');
-
-    if (lastAmpersand == NULL) {
-        return -1; // '&' not found in the data
-    }
-
-    // Extract the ID from the substring after the last '&'
-    long id = strtol(lastAmpersand + 1, NULL, 10);
-
-    return (int)id; // Convert the long integer to int and return
-}
-
-int extractIdFromFrame(const Frame *frame) {
-    if (frame == NULL || frame->header_length <= 0 || frame->data == NULL) {
-        return -1; 
-    }
-
-    char *idStart = frame->data;
-    int id = *((int *)idStart); 
-
-    return id;
-}
-
 int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
    // printf("Iniciando fillDownloadInfo...\n");
     char *token, *dataCopy;
@@ -149,7 +120,7 @@ void processPlaylistsResponse(Frame *frame) {
 }
 
 int writeBinaryFile(Frame incoming_frame,FileInfo *downloadInfo) {
-    write(1,"*********************",sizeof("*********************"));
+
     int idAndSeparatorLength = sizeof(int) + 1;
     char *fileDataStart = incoming_frame.data + idAndSeparatorLength;
     ssize_t data_length = FRAME_SIZE - 3 - incoming_frame.header_length - idAndSeparatorLength;
@@ -173,34 +144,66 @@ int writeBinaryFile(Frame incoming_frame,FileInfo *downloadInfo) {
     return 0;
 }
 
-int receiveFileData( FileInfo *downloadInfo) {
+int receiveFileData(int sockfd, FileInfo *downloadInfo) {
+    Frame incoming_frame;
     downloadInfo->totalBytesReceived = 0;
 
+    //printf("Inicio de receiveFunctionFileData. fileSize esperado: %zd bytes\n", fileSize);
+    key_t key = ftok("S10_cocinero.c", 1);
+
+    //int mq_id = msgget (IPC_PRIVATE, 0600 | IPC_CREAT);//msgget(key, IPC_CREAT | 0666);
+    int mq_id = msgget(key, IPC_CREAT | 0666);
+     //   printf("The message q-id is: %d",mq_id);
+
+    if (mq_id == -1) {
+        printF("Error al crear la cola de mensajes\n");
+        exit(EXIT_FAILURE);
+    }
 
     MessageQueue msg;
-        printf("\n\nRebo per la cua %d + id bustia : %d ",downloadInfo->id_queue,downloadInfo->id_bustia);
 
-    while (downloadInfo->totalBytesReceived < downloadInfo->fileSize) {
-       // usleep(1000);
-   
+    while (downloadInfo->totalBytesReceived < downloadInfo->fileSize-600) {
+        //usleep(1000);
+    
+        pthread_mutex_lock(&socket_mutex);
+        //msgrcv(mq_id, &msg, sizeof(msg) - sizeof(long), 1000, IPC_NOWAIT) aixi enteroia la mida es variable
+        if(receive_frame(sockfd, &incoming_frame) >= 0) {
+        //if (msgrcv(mq_id, &msg, 256*sizeof(char),1000, IPC_NOWAIT) != -1){/* ||  receive_frame(sockfd, &incoming_frame) >= 0) {   //Fiquem IPC_NOWAIT perque no sigui bloquejant*/
+            pthread_mutex_unlock(&socket_mutex);
 
-               if (msgrcv(downloadInfo->id_queue, &msg, sizeof(MessageQueue)- sizeof(long) , downloadInfo->id_bustia, 0) != -1) {// if (msgrcv(downloadInfo->id_queue, &msg, sizeof(msg) - sizeof(long), downloadInfo->id_bustia, 0) != -1) {
-                printf("Rebo per la cua %d + id bustia : %ld ",downloadInfo->id_queue,msg.mtype);
-                printf("Receiving data: %s\n\n", msg.frame.data);
+            if (strcmp(incoming_frame.header, "FILE_DATA") == 0) {
 
+                if(writeBinaryFile(incoming_frame,downloadInfo)==-1)
+                    return -1; //Error al escriure al file binary
+                
+                //printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, downloadInfo->totalBytesReceived);
+            } 
+
+            free(incoming_frame.header);
+            free(incoming_frame.data);
+        }
+        
+        
+        else if(msgrcv(mq_id, &msg, sizeof(msg) - sizeof(long)/*256*sizeof(char )*/, 0, IPC_NOWAIT)>=0){// aixi enteroia la mida es variable) if (msgrcv(mq_id, &msg, 256*sizeof(char),1000, IPC_NOWAIT) != -1){
+            if (strcmp(msg.frame.header, "FILE_DATA") == 0) {
                 print_frame5(&msg.frame);
-            //if (strcmp(msg.frame.header, "FILE_DATA") == 0) {
-              //  print_frame5(&msg.frame);
                 if(writeBinaryFile(msg.frame,downloadInfo)==-1)
                     return -1; //Error al escriure al file binary
                 //printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, downloadInfo->totalBytesReceived);
-            //} 
+            } 
+
+            //free(msg.frame.header);
+           // free(msg.frame.data);
         }
-        else{
-            printF("Error al rewbre el mensaje\n");
+        else{ 
+            printF("Error receiving frame");
+            perror("Error receiving frame");
+            break;
+
         }
-        printf("Total data received: %zd bytes\n", downloadInfo->totalBytesReceived);
     }
+
+    printf("Total data received: %zd bytes\n", downloadInfo->totalBytesReceived);
     
     return (downloadInfo->totalBytesReceived == downloadInfo->fileSize) ? 0 : -1;
 }
@@ -209,18 +212,8 @@ int receiveFileData( FileInfo *downloadInfo) {
 void *downloadSongs(void *arg) {
     FileInfo *downloadInfo = (FileInfo *)arg;
     //printf("\nIniciando download Songs. Descargando: %s, fileSize: %d\n", downloadInfo->fileName, downloadInfo->fileSize);
-    /*printf("File Name: %s\n", downloadInfo->fileName);
-    printf("File Size: %d\n", downloadInfo->fileSize);
-    printf("MD5 Sum: %s\n", downloadInfo->md5sum);
-    printf("Song Path: %s\n", downloadInfo->songPath);
-    printf("Song ID: %d\n", downloadInfo->songId);
-    printf("File Descriptor (fd_song): %d\n", downloadInfo->fd_song);
-    printf("Total Bytes Received: %zd\n", downloadInfo->totalBytesReceived);*/
-    printf("ID Queue: %d\n", downloadInfo->id_queue);
-    printf("ID Bustia: %d\n", downloadInfo->id_bustia);
-
-    // You can also print frame information if needed
-     if (receiveFileData( downloadInfo) == 0){
+   
+    if (receiveFileData(sockfd_poole, downloadInfo) == 0){
         //printf("Download completed\n");  
 
         char *calculated_md5 = calculateMD5(downloadInfo->songPath);
@@ -248,6 +241,8 @@ void createBinaryFile(Frame *frame,FileInfo *fileInfo) {
     fileInfo->songPath = malloc(strlen(fileInfo->fileName) + strlen(".mp3") + 1);
     sprintf(fileInfo->songPath, "%s.mp3", fileInfo->fileName);   // sprintf(fileInfo->songPath, "%s.mp3", fileInfo->fileName);
 
+
+
     fileInfo->fd_song = open(fileInfo->songPath, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 
     if (fileInfo->fd_song == -1) {
@@ -269,73 +264,81 @@ void processFileResponse(FileInfo *fileInfo) {
         perror("Error creating download thread");
         free(threadInfo);
     }
+    //pthread_join(downloadThread,NULL);
 }
 
-void messageQueue(Frame *frame,int mq_id,int id_bustia) {
-    MessageQueue msg;
+void messageQueue(Frame *frame, MessageQueue *msg,int mq_id) {
+    msg->frame=*frame;
+    print_frame4(&msg->frame);
+    msg->mtype=1; //Long,a quina bustia enviarem el misssatge Sempre utilitzem la variable M1 per enviar el missatge,definim el id del missatge com  a 1
+    printF("Enviant frames de la message queue");
+   if (msgsnd(mq_id, &msg, sizeof(msg) - sizeof(long), 0) == -1) {// if (msgsnd(mq_id, &msg, 256*sizeof(char), 0) == -1) {// //Enviem 256 bytes(la trama),crec que no cal contar el long
+        printF("Error al enviar el mensaje\n");
+            perror("Error en msgsnd");
+if (errno == EAGAIN) {
+        // La cola de mensajes está llena y IPC_NOWAIT está establecido
+        // Puedes tomar medidas específicas para manejar este caso
+        printf("La cola de mensajes está llena. Mensaje no enviado.\n");
+    } else {
+        // Otro tipo de error
+        printf("Error desconocido al enviar el mensaje.\n");
+    }
+        exit(EXIT_FAILURE);
+    }
+}
 
-    msg.frame = *frame;
-    msg.mtype = id_bustia;
+void *socketListener() {
 
-    printf("Envio per la cua %d + id bustia : %ld \n\n", mq_id, msg.mtype);
-    //sleep(5);
-    if (msgsnd(mq_id, &msg, sizeof(MessageQueue)- sizeof(long) , 0) == -1) {    //if (msgsnd(mq_id, &msg, sizeof(Frame) - sizeof(long), 0) == -1) {
-
-        perror("Error al enviar el mensaje");
+   key_t key = ftok("S10_cocinero.c", 1);
+   int mq_id=msgget(key, IPC_CREAT | 0666);
+    //int mq_id = msgget (IPC_PRIVATE, 0600 | IPC_CREAT);//msgget(key, IPC_CREAT | 0666);
+    printf("The message q-id is: %d",mq_id);
+    if (mq_id == -1) {
+        printF("Error al crear la cola de mensajes\n");
         exit(EXIT_FAILURE);
     }
 
-
-}
-
-void *socketListener(void *arg) {
-    ThreadArgs *args = ( ThreadArgs *)arg;
-
-    if (args == NULL) {
-        printF("Error: ThreadArgs is NULL\n");
-        return NULL;  // or handle the error appropriately
-    }
-    int mq_id = args->mq_id;
-    /*MessageQueue *msg = args->msg;
-    if (msg == NULL) {
-        printF("Error: MessageQueue is NULL\n");
-        return NULL;  // or handle the error appropriately
-    }*/
-
+    MessageQueue msg;
+    
     FileInfo *fileInfo = malloc(sizeof(FileInfo));
-    fileInfo->id_queue=mq_id;
-    printf("Envio per la cua %d + id bustia :\n\n", mq_id );
 
     while (1) {
-        usleep(1000);
-
         Frame frame;
+    
+        pthread_mutex_lock(&socket_mutex);
         if (receive_frame(sockfd_poole, &frame) < 0) {
             printF("Error");
             break;
         }  
         
+        pthread_mutex_unlock(&socket_mutex); 
+
+      //if (strcmp(frame.header, "FILE_DATA") != 0) 
         if (strcmp(frame.header, "SONGS_RESPONSE") == 0) {
             processSongsResponse(&frame);
         } else if (strcmp(frame.header, "PLAYLISTS_RESPONSE") == 0) {
             processPlaylistsResponse(&frame);
         } else if (strcmp(frame.header, "NEW_FILE") == 0) {
-            print_frame2(&frame);
-            int id_bustia2 = extractIdFromFrame2(&frame);
-            printf("id bustia fora NWE FILE : %d\n ",id_bustia2);
-            fileInfo->id_bustia=id_bustia2;
-            createBinaryFile(&frame, fileInfo); 
-            
-            processFileResponse(fileInfo);    
-       }
+                              print_frame2(&frame);
+
+            createBinaryFile(&frame, fileInfo);    
+            processFileResponse(fileInfo);            
+        }
         else if (strcmp(frame.header, "FILE_DATA") == 0) {
+            //writeBinaryFile(frame,fileInfo);  
+                 // print_frame2(&frame);
+            //sleep(1);
+              //  pthread_mutex_lock(&socket_mutex);
+ FileInfo *threadInfo = malloc(sizeof(FileInfo));
+    *threadInfo = *fileInfo;
+    pthread_t downloadThread;
+    if (pthread_create(&downloadThread, NULL, downloadSongs, threadInfo) != 0) {    // nou thread pels Downloads
+        perror("Error creating download thread");
+        free(threadInfo);
+    }
+            messageQueue(&frame,&msg,mq_id);            //implementem cua de missatges;
+                //   pthread_mutex_unlock(&socket_mutex); 
 
-            int id_bustia = extractIdFromFrame(&frame);
-           // printf("id bustia fora FILE DATA: %d\n ",id_bustia);
-            //fileInfo->id_bustia=id_bustia;
-           // sleep(5);
-
-            messageQueue(&frame,mq_id,id_bustia);            //implementem cua de missatges;
         }
         
         free(frame.header);
@@ -397,37 +400,10 @@ int connectToPoole(char *tokens[]) {
 
     if (strcmp(frameAcknowledge.header, "CON_OK") == 0) {
         // LA Connexio amb Poole es bona, per tant, llancem thread per escoltar trames.
-    key_t key = IPC_PRIVATE; // Use IPC_PRIVATE to generate a unique key
-
-       if (key == -1) {
-        perror("Error generating key");
-        fprintf(stderr, "Additional information: Something went wrong with ftok.\n");
-        //exit(EXIT_FAILURE);
-    }
-        int mq_id_queue=msgget(key, IPC_CREAT | 0666);
-
-        if (mq_id_queue == -1) {
-            perror("Error al obtener/crear la cola de mensajes");
-            printF("Error al crear la cola de mensajes\n");
-            exit(EXIT_FAILURE);
-        }
-
-       // MessageQueue msgParameter;
-        ThreadArgs *threadArgs = malloc(sizeof(ThreadArgs));
-        if (threadArgs == NULL) {
-            // Handle the case where malloc fails to allocate memory
-            perror("Error allocating memory for threadArgs");
-            exit(EXIT_FAILURE);
-        }
-
-        threadArgs->mq_id = mq_id_queue;
-       // threadArgs->msg = &msgParameter;  // Assign the address of msgParam
         pthread_t listenerThread;
-
-        if (pthread_create(&listenerThread, NULL, socketListener, threadArgs) != 0) {
+        if (pthread_create(&listenerThread, NULL, socketListener, NULL) != 0) {
             perror("Error al crear el hilo de escucha");
-            exit(EXIT_FAILURE);
-                    
+            
             close(sockfd_poole);
             return 0;
         }

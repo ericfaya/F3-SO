@@ -3,6 +3,7 @@
 #include "PooleList.h"
 
 void enviarAcknowledge(int newsock,int errorSocketOrNot,int bowmanOrPoole,PooleList *pooleList) {
+    printf("Depuración: Enviar Acknowledge\n");
     char *header;
     if(errorSocketOrNot==-1 ){
         header = "[CON_KO]";
@@ -12,11 +13,16 @@ void enviarAcknowledge(int newsock,int errorSocketOrNot,int bowmanOrPoole,PooleL
     }
     
     char data2[FRAME_SIZE - 3 - strlen(header)]; // -3 por 'type' y 'header_length'.
-    if(bowmanOrPoole == 0){ //Es 0(bowman) i cal fer una trama distinta
-        PooleNode* pooleListMneysBalancejador=searchPooleListLessBowmans(pooleList);//balancejadorDeCarrega
-        snprintf(data2, sizeof(data2), "%s&%s&%u", pooleListMneysBalancejador->info.userName,pooleListMneysBalancejador->info.ip,pooleListMneysBalancejador->info.port);
-        pooleList->head->info.contador_bowmans++;
-    }
+    if (bowmanOrPoole == 0 && pooleList->head != NULL) {
+            PooleNode* pooleListMneysBalancejador = searchPooleListLessBowmans(pooleList);
+            if (pooleListMneysBalancejador != NULL) {
+                snprintf(data2, sizeof(data2), "%s&%s&%u", pooleListMneysBalancejador->info.userName, pooleListMneysBalancejador->info.ip, pooleListMneysBalancejador->info.port);
+                pooleListMneysBalancejador->info.contador_bowmans++;
+            } else {
+                // No hay Pooles disponibles
+                strcpy(data2, " "); // Envía datos vacíos
+            }
+        }
     else{ //Es 1 (poole)
         snprintf(data2, sizeof(data2), " ");
     }
@@ -24,6 +30,8 @@ void enviarAcknowledge(int newsock,int errorSocketOrNot,int bowmanOrPoole,PooleL
     fillFrame(frame_buffer,0x01,header,data2);
 
     write(newsock, frame_buffer, 256);
+    printf("Depuración: Acknowledge enviado, cerrando socket: %d\n", newsock);
+    close(newsock);
 }
 
 void process_frame(Frame *frame, PooleList *list) {
@@ -48,12 +56,13 @@ void freeAndClose(PooleList *pooleList,int sockfd_poole,int sockfd_bowman){
 }
 
 void waitSocketPoole(int sockfd_poole,PooleList *pooleList){
+     printf("Depuración: Esperando conexión de Poole\n");
     struct sockaddr_in c_addr;
     socklen_t c_len = sizeof(c_addr);
     int newsock = accept(sockfd_poole, (struct sockaddr *)&c_addr, &c_len);
     if (newsock < 0) {
         perror("accept");
-        exit(EXIT_FAILURE);
+         return;
     }
     
     Frame incoming_poole_frame; // Asegúrate de que la estructura Frame esté definida
@@ -63,12 +72,13 @@ void waitSocketPoole(int sockfd_poole,PooleList *pooleList){
 }
 
 void waitSocketBowman(int sockfd_bowman,PooleList *pooleList){
+    printf("Depuración: Esperando conexión de Bowman\n");
     struct sockaddr_in c_addr;
     socklen_t c_len = sizeof(c_addr);
     int newsock = accept(sockfd_bowman, (struct sockaddr *)&c_addr, &c_len);
     if (newsock < 0) {
         perror("accept");
-        exit(EXIT_FAILURE);
+         return;
     }
     Frame incoming_poole_frame; // Asegúrate de que la estructura Frame esté definida
     int errorSocketOrNot=receive_frame(newsock, &incoming_poole_frame);

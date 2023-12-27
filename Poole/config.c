@@ -1,5 +1,18 @@
 #include "config.h"
 
+void comproveAndpersan (char *fullName){
+    int length = strlen(fullName);
+    
+    for(int i=0;i<length;i++){
+        if(fullName[i]=='&'){       
+            for(int j=i;j<length;j++){
+                fullName[j]=fullName[j+1];
+            }
+            length--;
+            i--;
+        }
+    }
+}
 
 char *read_until(int fd, char end){
     int i = 0, size;
@@ -31,7 +44,7 @@ Poole readUser(int fd)
     
     // Name
     userTmp.fullName = read_until(fd, '\n');
-
+    comproveAndpersan(userTmp.fullName);
     // Path
     userTmp.pathName = read_until(fd, '\n');
 

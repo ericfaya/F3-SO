@@ -40,4 +40,9 @@ void pad_frame2(Frame *frame, char *frame_buffer, size_t data_len);
 void splitFrame(Frame *frame,char *tokens[]);
 void fillFrame(char frame_buffer[], uint8_t type,  char *header,  char *data);
 void fillFrame2(char frame_buffer[], uint8_t type, char *header, char *data, size_t data_len);
+
+
+int extractIdFromFrame2(const Frame *frame);
+
+int extractIdFromFrame(const Frame *frame);
 #endif

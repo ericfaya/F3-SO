@@ -231,3 +231,32 @@ void fillFrame2(char frame_buffer[], uint8_t type, char *header, char *data, siz
     free(poole_frame->data);
     free(poole_frame);
 }
+
+int extractIdFromFrame2(const Frame *frame) {
+    if (frame == NULL || frame->header_length <= 0 || frame->data == NULL) {
+        return -1; // Invalid frame or data
+    }
+
+    // Find the last occurrence of '&' in the data
+    char *lastAmpersand = strrchr(frame->data, '&');
+
+    if (lastAmpersand == NULL) {
+        return -1; // '&' not found in the data
+    }
+
+    // Extract the ID from the substring after the last '&'
+    long id = strtol(lastAmpersand + 1, NULL, 10);
+
+    return (int)id; // Convert the long integer to int and return
+}
+
+int extractIdFromFrame(const Frame *frame) {
+    if (frame == NULL || frame->header_length <= 0 || frame->data == NULL) {
+        return -1; 
+    }
+
+    char *idStart = frame->data;
+    int id = *((int *)idStart); 
+
+    return id;
+}

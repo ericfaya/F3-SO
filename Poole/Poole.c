@@ -69,7 +69,7 @@ void *sendFileData(void *arg) {
     ssize_t totalBytesSent = 0;
     ssize_t readSize;
     while ((readSize = read(fd_file, buffer, data_capacity)) > 0) {
-        //usleep(1000);
+        usleep(2000);
         char frame_buffer[FRAME_SIZE] = {0};
   
         *(int *)(frame_buffer + 3 + header_len) = info->id;

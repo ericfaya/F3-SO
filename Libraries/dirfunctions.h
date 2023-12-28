@@ -7,4 +7,5 @@ void listSongsInDirectory(char *directory, char *result, int includeDirs);
 void listAllSongs(char *directory, char *result);
 void listPlayLists(char *directory, char *result);
 
+
 #endif // SONGFUNCTIONS_H

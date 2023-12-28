@@ -329,6 +329,7 @@ void *socketListener() {
                  // print_frame2(&frame);
             //sleep(1);
               //  pthread_mutex_lock(&socket_mutex);
+                //   pthread_mutex_unlock(&socket_mutex); 
  FileInfo *threadInfo = malloc(sizeof(FileInfo));
     *threadInfo = *fileInfo;
     pthread_t downloadThread;

@@ -6,9 +6,37 @@ int numUsuaris;
 char *tokens[MAX_TOKENS];
 int sockfd_poole;
 int isConnectedToPoole = 0;
-int mq_id_queue;
 
 pthread_mutex_t socket_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+int extractIdFromFrame2(const Frame *frame) {
+    if (frame == NULL || frame->header_length <= 0 || frame->data == NULL) {
+        return -1; // Invalid frame or data
+    }
+
+    // Find the last occurrence of '&' in the data
+    char *lastAmpersand = strrchr(frame->data, '&');
+
+    if (lastAmpersand == NULL) {
+        return -1; // '&' not found in the data
+    }
+
+    // Extract the ID from the substring after the last '&'
+    long id = strtol(lastAmpersand + 1, NULL, 10);
+
+    return (int)id; // Convert the long integer to int and return
+}
+
+int extractIdFromFrame(const Frame *frame) {
+    if (frame == NULL || frame->header_length <= 0 || frame->data == NULL) {
+        return -1; 
+    }
+
+    char *idStart = frame->data;
+    int id = *((int *)idStart); 
+
+    return id;
+}
 
 int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
    // printf("Iniciando fillDownloadInfo...\n");
@@ -149,14 +177,16 @@ int writeBinaryFile(Frame incoming_frame,FileInfo *downloadInfo) {
 int receiveFileData( FileInfo *downloadInfo) {
     downloadInfo->totalBytesReceived = 0;
 
-    MessageQueue msg;
 
+    MessageQueue msg;
+//usleep(200000000);
     while (downloadInfo->totalBytesReceived < downloadInfo->fileSize) {
+       // usleep(1000);
    
         //printf("\n\nRebo per la cua %d + id bustia : %d ",downloadInfo->id_queue,downloadInfo->id_bustia);
 
                if (msgrcv(downloadInfo->id_queue, &msg, sizeof(MessageQueue)- sizeof(long) , downloadInfo->id_bustia, 0) != -1) {// if (msgrcv(downloadInfo->id_queue, &msg, sizeof(msg) - sizeof(long), downloadInfo->id_bustia, 0) != -1) {
-              //  printf("Rebo per la cua %d + id bustia : %ld ",downloadInfo->id_queue,msg.mtype);
+                //printf("Rebo per la cua %d + id bustia : %ld ",downloadInfo->id_queue,msg.mtype);
                // printf("Receiving data: %s\n\n", msg.frame.data);
 
                 //print_frame5(&msg.frame);
@@ -247,12 +277,12 @@ void messageQueue(Frame *frame,int mq_id,int id_bustia) {
     msg.mtype = id_bustia;
 
     //printf("Envio per la cua %d + id bustia : %ld \n\n", mq_id, msg.mtype);
+    //sleep(5);
     if (msgsnd(mq_id, &msg, sizeof(MessageQueue)- sizeof(long) , 0) == -1) {    //if (msgsnd(mq_id, &msg, sizeof(Frame) - sizeof(long), 0) == -1) {
 
         perror("Error al enviar el mensaje");
         exit(EXIT_FAILURE);
     }
-    usleep(2000);
 }
 
 void *socketListener(void *arg) {
@@ -266,17 +296,17 @@ void *socketListener(void *arg) {
 
     FileInfo *fileInfo = malloc(sizeof(FileInfo));
     fileInfo->id_queue = mq_id;
-   // printf("Envio per la cua %d + id bustia :\n\n", mq_id );
+    printf("Envio per la cua %d + id bustia :\n\n", mq_id );
 
     while (1) {
+        usleep(1000);
 
         Frame frame;
-       
         if (receive_frame(sockfd_poole, &frame) < 0) {
             printF("Error");
             break;
         }  
-
+        
         if (strcmp(frame.header, "SONGS_RESPONSE") == 0) {
             processSongsResponse(&frame);
         } else if (strcmp(frame.header, "PLAYLISTS_RESPONSE") == 0) {
@@ -289,7 +319,7 @@ void *socketListener(void *arg) {
             createBinaryFile(&frame, fileInfo); 
             
             processFileResponse(fileInfo); 
-            //sleep(1);   
+            usleep(1000);   
        }
         else if (strcmp(frame.header, "FILE_DATA") == 0) {
 
@@ -299,6 +329,7 @@ void *socketListener(void *arg) {
            // sleep(5);
 
             messageQueue(&frame,mq_id,id_bustia);            //implementem cua de missatges;
+            usleep(2000);
         }
         
         free(frame.header);
@@ -379,8 +410,6 @@ void listSongs(int *connectedOrNot) {
         fillFrame(frame_buffer,0x02,"LIST_SONGS"," ");
         
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
-                printf("SEND COMANDA: %s    AND NOW WE WAIT FOR RESPONE\n","LIST_SONGS");
-
     }
     else{
         printF("Cannot list, you are not connected to HAL 9000\n");
@@ -450,8 +479,7 @@ void logoutDiscovery(){
 
 void logout(){
     logoutDiscovery(); //A tokens li envia el nom del servidor
-        msgctl (mq_id_queue, IPC_RMID, (struct msqid_ds *)NULL);    //Que algun dels dos procesos elimini la bustia
-
+    
     char frame_buffer[FRAME_SIZE] = {0};
     fillFrame(frame_buffer,0x02,"EXIT",bowmaneta[0].fullName);
 
@@ -558,20 +586,20 @@ int main(int argc, char *argv[]) {
     int connectedOrNot = 0;
 
 
-    key_t key = IPC_PRIVATE; // Use IPC_PRIVATE to generate a unique key
+key_t key = IPC_PRIVATE; // Use IPC_PRIVATE to generate a unique key
 
-    if (key == -1) {
-        perror("Error generating key");
-        fprintf(stderr, "Additional information: Something went wrong with ftok.\n");
-        //exit(EXIT_FAILURE);
-    }
-        mq_id_queue=msgget(key, IPC_CREAT | 0666);
+        if (key == -1) {
+            perror("Error generating key");
+            fprintf(stderr, "Additional information: Something went wrong with ftok.\n");
+            //exit(EXIT_FAILURE);
+        }
+        int mq_id_queue=msgget(key, IPC_CREAT | 0666);
 
-    if (mq_id_queue == -1) {
-        perror("Error al obtener/crear la cola de mensajes");
-        printF("Error al crear la cola de mensajes\n");
-        exit(EXIT_FAILURE);
-    }
+        if (mq_id_queue == -1) {
+            perror("Error al obtener/crear la cola de mensajes");
+            printF("Error al crear la cola de mensajes\n");
+            exit(EXIT_FAILURE);
+        }
 
 
 
@@ -583,12 +611,8 @@ int main(int argc, char *argv[]) {
             free(command); 
             continue; 
         }
-        printf("NEW COMANDA: %s\n",command);
         int newCommand=controleCommands(command, &connectedOrNot);
 
-
-
-         //pthread_mutex_lock(&socket_mutex);
         if(newCommand==1){
             ThreadArgs *threadArgs = malloc(sizeof(ThreadArgs));
             if (threadArgs == NULL) {
@@ -598,9 +622,8 @@ int main(int argc, char *argv[]) {
             }
 
             threadArgs->mq_id = mq_id_queue;
-         // threadArgs->msg = &msgParameter;  // Assign the address of msgParam
+        // threadArgs->msg = &msgParameter;  // Assign the address of msgParam
             pthread_t listenerThread;
-        printf("\n\ncreate to listen: %s",command);
 
             if (pthread_create(&listenerThread, NULL, socketListener, threadArgs) != 0) {
                 perror("Error al crear el hilo de escucha");
@@ -610,7 +633,6 @@ int main(int argc, char *argv[]) {
                 //return 0;
             }
         }
-        //pthread_mutex_unlock(&socket_mutex); 
 
 
 

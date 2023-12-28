@@ -6,9 +6,37 @@ int numUsuaris;
 char *tokens[MAX_TOKENS];
 int sockfd_poole;
 int isConnectedToPoole = 0;
-int mq_id_queue;
 
 pthread_mutex_t socket_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+int extractIdFromFrame2(const Frame *frame) {
+    if (frame == NULL || frame->header_length <= 0 || frame->data == NULL) {
+        return -1; // Invalid frame or data
+    }
+
+    // Find the last occurrence of '&' in the data
+    char *lastAmpersand = strrchr(frame->data, '&');
+
+    if (lastAmpersand == NULL) {
+        return -1; // '&' not found in the data
+    }
+
+    // Extract the ID from the substring after the last '&'
+    long id = strtol(lastAmpersand + 1, NULL, 10);
+
+    return (int)id; // Convert the long integer to int and return
+}
+
+int extractIdFromFrame(const Frame *frame) {
+    if (frame == NULL || frame->header_length <= 0 || frame->data == NULL) {
+        return -1; 
+    }
+
+    char *idStart = frame->data;
+    int id = *((int *)idStart); 
+
+    return id;
+}
 
 int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
    // printf("Iniciando fillDownloadInfo...\n");
@@ -148,23 +176,20 @@ int writeBinaryFile(Frame incoming_frame,FileInfo *downloadInfo) {
 
 int receiveFileData( FileInfo *downloadInfo) {
     downloadInfo->totalBytesReceived = 0;
-
     MessageQueue msg;
 
     while (downloadInfo->totalBytesReceived < downloadInfo->fileSize) {
-   
-        //printf("\n\nRebo per la cua %d + id bustia : %d ",downloadInfo->id_queue,downloadInfo->id_bustia);
+        //printf("\n\nRebo per la cua %d + id bustia : %d ",downloadInfo->id_queue,downloadInfo->id_bustia); /********************************VA MOLT BE PER DEBUGAR*/
+        if (msgrcv(downloadInfo->id_queue, &msg, sizeof(MessageQueue)- sizeof(long) , downloadInfo->id_bustia, 0) != -1) {// if (msgrcv(downloadInfo->id_queue, &msg, sizeof(msg) - sizeof(long), downloadInfo->id_bustia, 0) != -1) {
+            //printf("Rebo per la cua %d + id bustia : %ld ",downloadInfo->id_queue,msg.mtype);
+            // printf("Receiving data: %s\n\n", msg.frame.data);
 
-               if (msgrcv(downloadInfo->id_queue, &msg, sizeof(MessageQueue)- sizeof(long) , downloadInfo->id_bustia, 0) != -1) {// if (msgrcv(downloadInfo->id_queue, &msg, sizeof(msg) - sizeof(long), downloadInfo->id_bustia, 0) != -1) {
-              //  printf("Rebo per la cua %d + id bustia : %ld ",downloadInfo->id_queue,msg.mtype);
-               // printf("Receiving data: %s\n\n", msg.frame.data);
-
-                //print_frame5(&msg.frame);
+            //print_frame5(&msg.frame);
             //if (strcmp(msg.frame.header, "FILE_DATA") == 0) {
-              //  print_frame5(&msg.frame);
-                if(writeBinaryFile(msg.frame,downloadInfo)==-1)
-                    return -1; //Error al escriure al file binary
-                //printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, downloadInfo->totalBytesReceived);
+            //  print_frame5(&msg.frame);
+            if(writeBinaryFile(msg.frame,downloadInfo)==-1)
+            return -1; //Error al escriure al file binary
+            //printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, downloadInfo->totalBytesReceived);
             //} 
         }
         else{
@@ -179,16 +204,16 @@ int receiveFileData( FileInfo *downloadInfo) {
 
 void *downloadSongs(void *arg) {
     FileInfo *downloadInfo = (FileInfo *)arg;
-   
+    
     printf("ID Queue: %d\n", downloadInfo->id_queue);
     printf("ID Bustia: %d\n", downloadInfo->id_bustia);
 
-    // You can also print frame information if needed
+    
      if (receiveFileData( downloadInfo) == 0){
         //printf("Download completed\n");  
 
         char *calculated_md5 = calculateMD5(downloadInfo->songPath);
-            //printf("MD5 values match. Expected: %s, \nCalculated: %s\n and path %s", downloadInfo->md5sum, calculated_md5,downloadInfo->songPath);
+            printf("MD5 values match. Expected: %s, \nCalculated: %s\n and path %s", downloadInfo->md5sum, calculated_md5,downloadInfo->songPath);
 
         if (calculated_md5 != NULL && strcmp(downloadInfo->md5sum, calculated_md5) == 0) {
             write(1,"MD5 verification successful\n",sizeof("MD5 verification successful\n"));
@@ -246,13 +271,13 @@ void messageQueue(Frame *frame,int mq_id,int id_bustia) {
     msg.frame = *frame;
     msg.mtype = id_bustia;
 
-    //printf("Envio per la cua %d + id bustia : %ld \n\n", mq_id, msg.mtype);
+   // printf("Envio per la cua %d + id bustia : %ld \n\n", mq_id, msg.mtype); /********************************VA MOLT BE PER DEBUGAR*/
+    //sleep(5);
     if (msgsnd(mq_id, &msg, sizeof(MessageQueue)- sizeof(long) , 0) == -1) {    //if (msgsnd(mq_id, &msg, sizeof(Frame) - sizeof(long), 0) == -1) {
 
         perror("Error al enviar el mensaje");
         exit(EXIT_FAILURE);
     }
-    usleep(2000);
 }
 
 void *socketListener(void *arg) {
@@ -266,17 +291,17 @@ void *socketListener(void *arg) {
 
     FileInfo *fileInfo = malloc(sizeof(FileInfo));
     fileInfo->id_queue = mq_id;
-   // printf("Envio per la cua %d + id bustia :\n\n", mq_id );
+    printf("Envio per la cua %d + id bustia :\n\n", mq_id );
 
     while (1) {
+        //usleep(1000);
 
         Frame frame;
-       
         if (receive_frame(sockfd_poole, &frame) < 0) {
             printF("Error");
             break;
         }  
-
+        
         if (strcmp(frame.header, "SONGS_RESPONSE") == 0) {
             processSongsResponse(&frame);
         } else if (strcmp(frame.header, "PLAYLISTS_RESPONSE") == 0) {
@@ -288,8 +313,7 @@ void *socketListener(void *arg) {
             fileInfo->id_bustia=id_bustia2;
             createBinaryFile(&frame, fileInfo); 
             
-            processFileResponse(fileInfo); 
-            //sleep(1);   
+            processFileResponse(fileInfo);    
        }
         else if (strcmp(frame.header, "FILE_DATA") == 0) {
 
@@ -299,6 +323,7 @@ void *socketListener(void *arg) {
            // sleep(5);
 
             messageQueue(&frame,mq_id,id_bustia);            //implementem cua de missatges;
+            usleep(3000);
         }
         
         free(frame.header);
@@ -309,6 +334,7 @@ void *socketListener(void *arg) {
     free(fileInfo->songPath);        
     free(fileInfo);
        
+    msgctl (mq_id, IPC_RMID, (struct msqid_ds *)NULL);    //Que algun dels dos procesos elimini la bustia
   
     return NULL;
 }
@@ -357,8 +383,42 @@ int connectToPoole(char *tokens[]) {
         return 0;
     }
 
-    if (strcmp(frameAcknowledge.header, "CON_OK") == 0) {        // LA Connexio amb Poole es bona, per tant, llancem thread per escoltar trames.
-        
+    if (strcmp(frameAcknowledge.header, "CON_OK") == 0) {
+        // LA Connexio amb Poole es bona, per tant, llancem thread per escoltar trames.
+    key_t key = IPC_PRIVATE; // Use IPC_PRIVATE to generate a unique key
+
+       if (key == -1) {
+        perror("Error generating key");
+        fprintf(stderr, "Additional information: Something went wrong with ftok.\n");
+        //exit(EXIT_FAILURE);
+    }
+        int mq_id_queue=msgget(key, IPC_CREAT | 0666);
+
+        if (mq_id_queue == -1) {
+            perror("Error al obtener/crear la cola de mensajes");
+            printF("Error al crear la cola de mensajes\n");
+            exit(EXIT_FAILURE);
+        }
+
+       // MessageQueue msgParameter;
+        ThreadArgs *threadArgs = malloc(sizeof(ThreadArgs));
+        if (threadArgs == NULL) {
+            // Handle the case where malloc fails to allocate memory
+            perror("Error allocating memory for threadArgs");
+            exit(EXIT_FAILURE);
+        }
+
+        threadArgs->mq_id = mq_id_queue;
+       // threadArgs->msg = &msgParameter;  // Assign the address of msgParam
+        pthread_t listenerThread;
+
+        if (pthread_create(&listenerThread, NULL, socketListener, threadArgs) != 0) {
+            perror("Error al crear el hilo de escucha");
+            exit(EXIT_FAILURE);
+                    
+            close(sockfd_poole);
+            return 0;
+        }
         return 1;
     }
     else{
@@ -379,8 +439,6 @@ void listSongs(int *connectedOrNot) {
         fillFrame(frame_buffer,0x02,"LIST_SONGS"," ");
         
         send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
-                printf("SEND COMANDA: %s    AND NOW WE WAIT FOR RESPONE\n","LIST_SONGS");
-
     }
     else{
         printF("Cannot list, you are not connected to HAL 9000\n");
@@ -450,8 +508,7 @@ void logoutDiscovery(){
 
 void logout(){
     logoutDiscovery(); //A tokens li envia el nom del servidor
-        msgctl (mq_id_queue, IPC_RMID, (struct msqid_ds *)NULL);    //Que algun dels dos procesos elimini la bustia
-
+    
     char frame_buffer[FRAME_SIZE] = {0};
     fillFrame(frame_buffer,0x02,"EXIT",bowmaneta[0].fullName);
 
@@ -464,25 +521,30 @@ void logout(){
    // char *header;
     if(errorSocketOrNot!=-1 ){
         if(strcmp(frameAcknoledge.header,"[CON_OK]")){
-            close(sockfd_poole);//Crec que no es tindra que fer perque sino es tanca la comunicacio
+            close(sockfd_poole);//Crec que no es tindra que fer perque sino es tanca la comunicacioconnectBowman
             printF("Thanks for using HAL 9000, see you soon, music lover!\n");
             exit(0);
         }//ELSE //  header = "CON_KO";
     }   
 }
 
-int controleCommands(char *whichCommand, int *connectedOrNot) {
+void* controleCommands(void* arg) {//int controleCommands(char *whichCommand, int *connectedOrNot) {
+    ThreadInfoCommand* threadInfo = (ThreadInfoCommand*)arg;
 
     int flag=0;
     char *whichCommand1,*whichCommand2;
     const char delimiter = ' ';
-    whichCommand1=strtok(whichCommand, &delimiter);
-   
+
+    char *inputCopy = strdup(threadInfo->command);
+    char *inputCopyForSecondToken = strdup(inputCopy);  // Make a copy for the second tokenization
+
+    whichCommand1=strtok(inputCopy, &delimiter);
     if(whichCommand1 != NULL){
-        if((strcasecmp("CONNECT",whichCommand1) == 0) && *connectedOrNot == 0){//Segona condicio per que no es connecti mes d'un cop
-            whichCommand2=strtok(NULL, &delimiter);//Si li fiquem NULL començara la segona busqueda per on es va quedar cuan es va cridar per primer cop strtok
+        if((strcasecmp("CONNECT",whichCommand1) == 0) && *(threadInfo->connectedOrNot) == 0){//Segona condicio per que no es connecti mes d'un cop
+            whichCommand2=strtok(NULL, &delimiter);
+                    
             if(whichCommand2 == NULL){
-                *connectedOrNot=connectBowman(tokens);
+                *(threadInfo->connectedOrNot)=connectBowman(tokens);
             }
             else{
                 printF("Unknown command\n");
@@ -499,28 +561,29 @@ int controleCommands(char *whichCommand, int *connectedOrNot) {
             whichCommand2=strtok(NULL, &delimiter);//Si li fiquem NULL començara la segona busqueda per on es va quedar cuan es va cridar per primer cop strtok
             if(whichCommand2 != NULL){
                 if(strcasecmp("SONGS",whichCommand2) == 0){
-                    listSongs(connectedOrNot); 
+                    listSongs(threadInfo->connectedOrNot); 
                     flag=1;
                 }
                 else if(strcasecmp("PLAYLISTS",whichCommand2) == 0){
-                    listPlaylists(connectedOrNot);
+                    listPlaylists(threadInfo->connectedOrNot);
                     flag=1;
                 }
             }
         }
 
         if(strcasecmp(whichCommand1,"DOWNLOAD") == 0){ //TODO F3
-            download(connectedOrNot, whichCommand);
+            whichCommand2 = strtok(inputCopyForSecondToken, &delimiter);
+            download(threadInfo->connectedOrNot, whichCommand2);
             flag=1; 
         }
 
         if(strcasecmp("CHECK",whichCommand1) == 0){//TODO F3
-            //checkDownload(connectedOrNot);
+            //checkDownload (connectedOrNot);
             flag=1;
         }
 
         if(strcasecmp("CLEAR",whichCommand1) == 0){//TODO F3
-            //clearDownload(connectedOrNot);
+            //clearDownload (connectedOrNot);
             flag=1;
         }
         
@@ -528,11 +591,16 @@ int controleCommands(char *whichCommand, int *connectedOrNot) {
         else if(flag==0){
             printF("ERROR: Please input a valid command.\n");
         }
-    }
-    return 1;
+    } 
+   // printf("Esta connectat o no: %d",*(threadInfo->connectedOrNot));
+    // Return a value (can be NULL in this case)
+   
+    return (void *)threadInfo->connectedOrNot;
+    //return NULL;
+    //return 1;
 }
 
-/*void freeMemory(Bowman* bowmaneta, int numUsuaris){   //lliberar memoria pero no entenc el numUsuaris??? TODO CANVIARHO
+void freeMemory(Bowman* bowmaneta, int numUsuaris){   //lliberar memoria pero no entenc el numUsuaris??? TODO CANVIARHO
 
     int i;
     for(i=0; i<numUsuaris; i++){
@@ -541,7 +609,7 @@ int controleCommands(char *whichCommand, int *connectedOrNot) {
         free(bowmaneta[i].ipDiscovery);
     }
     free(bowmaneta);
-}*/
+}
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
@@ -556,69 +624,54 @@ int main(int argc, char *argv[]) {
 
     char *command;
     int connectedOrNot = 0;
-
-
-    key_t key = IPC_PRIVATE; // Use IPC_PRIVATE to generate a unique key
-
-    if (key == -1) {
-        perror("Error generating key");
-        fprintf(stderr, "Additional information: Something went wrong with ftok.\n");
-        //exit(EXIT_FAILURE);
-    }
-        mq_id_queue=msgget(key, IPC_CREAT | 0666);
-
-    if (mq_id_queue == -1) {
-        perror("Error al obtener/crear la cola de mensajes");
-        printF("Error al crear la cola de mensajes\n");
-        exit(EXIT_FAILURE);
-    }
-
-
-
     write(1, "\n$", 3);
     while (1) {
-       
+       //command
         command = read_until(STDIN_FILENO, '\n');         /* 1R THREAD ESCOLTAR DE LA TERMINAL/ //canvi fet que deien els becaris*/
         if (command == NULL || strlen(command) == 0) {// Leer el comando del usuario
             free(command); 
             continue; 
         }
-        printf("NEW COMANDA: %s\n",command);
-        int newCommand=controleCommands(command, &connectedOrNot);
-
-
-
-         //pthread_mutex_lock(&socket_mutex);
-        if(newCommand==1){
-            ThreadArgs *threadArgs = malloc(sizeof(ThreadArgs));
-            if (threadArgs == NULL) {
-                // Handle the case where malloc fails to allocate memory
-                perror("Error allocating memory for threadArgs");
-                exit(EXIT_FAILURE);
-            }
-
-            threadArgs->mq_id = mq_id_queue;
-         // threadArgs->msg = &msgParameter;  // Assign the address of msgParam
-            pthread_t listenerThread;
-        printf("\n\ncreate to listen: %s",command);
-
-            if (pthread_create(&listenerThread, NULL, socketListener, threadArgs) != 0) {
-                perror("Error al crear el hilo de escucha");
-                exit(EXIT_FAILURE);
-                        
-                close(sockfd_poole);
-                //return 0;
-            }
+        
+        ThreadInfoCommand* threadInfo = (ThreadInfoCommand*)malloc(sizeof(ThreadInfoCommand));//-----------------Thread of commands-----------------
+        if (threadInfo == NULL) {
+            perror("Error allocating memory for threadInfo");
+            exit(EXIT_FAILURE);
         }
-        //pthread_mutex_unlock(&socket_mutex); 
+        size_t commandLength = strcspn(command, "\n");
+        //printf("Command: %.*s, Length: %zu\n", (int)commandLength, command, commandLength);
 
+        threadInfo->command = strndup(command,commandLength); //strdup duplica el string
+        //printf("%s",threadInfo->command);
+        threadInfo->connectedOrNot = (int*)malloc(sizeof(int));  // Allocate memory for connectedOrNot
+        *(threadInfo->connectedOrNot) = connectedOrNot;  // Set the value (example)
 
+        pthread_t commandsThread;
+        if (pthread_create(&commandsThread, NULL, controleCommands, threadInfo) != 0) {    // nou thread pels Downloads
+            perror("Error creating download thread");
+            free(threadInfo->connectedOrNot);  // Free allocated memory
+            free(threadInfo->command);
+            free(threadInfo);
+        }
+        
+        void *res;
+           
+        if (pthread_join(commandsThread, &res) != 0) { // Wait for the thread to finish
+            perror("Error joining download thread");
+            // Handle the error and continue or exit as needed
+        }
+        int* updatedConnectedStatus = (int*)res;
+        // printf("Thread returns %X\n", *updatedConnectedStatus);
+        //int* updatedConnectedStatus = 1; //HAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARDCODED**********************
 
-
+        connectedOrNot = *updatedConnectedStatus;
+        free(threadInfo->connectedOrNot);
+        free(threadInfo->command);
+        free(threadInfo);
+ 
         write(1, "\n$", 3);
         free(command); 
     }
-    msgctl (mq_id_queue, IPC_RMID, (struct msqid_ds *)NULL);    //Que algun dels dos procesos elimini la bustia
 
     return 0;
 }

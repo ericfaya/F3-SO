@@ -25,7 +25,7 @@
 int SEM_constructor_with_name(semaphore * sem, key_t key) {
 
     // IPC_CREAT: if this is specified, and a semaphore with the given key does not exist, it is created, otherwise the call returns with -1, setting the appropriate errno value.
-    sem->shmid = semget(key, 1, IPC_CREAT | 0644);
+    sem->shmid = semget(key, 1, IPC_CREAT | 0600);
     if (sem->shmid < 0) return sem->shmid;
     return 0;
 }

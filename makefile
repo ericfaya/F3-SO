@@ -6,9 +6,13 @@ LIBS = -lpthread
 FRAME_O = Libraries/frame.o
 DIRFUNC_O = Libraries/dirfunctions.o
 MD5FUNC_O = Libraries/md5functions.o
+SEM_O = Libraries/semaphore_v2.o
 
 # Define all targets
 all: bowman poole discovery
+
+$(SEM_O): Libraries/semaphore_v2.c Libraries/semaphore_v2.h
+	$(CC) $(CFLAGS) -c $< -o $@ -I Libraries
 
 # Frame object file compilation
 $(FRAME_O): Libraries/frame.c Libraries/frame.h
@@ -23,8 +27,8 @@ $(MD5FUNC_O): Libraries/md5functions.c Libraries/md5functions.h
 	$(CC) $(CFLAGS) -c $< -o $@ -I Libraries
 
 # Bowman compilation
-bowman: $(FRAME_O) $(DIRFUNC_O) $(MD5FUNC_O) Bowman/Bowman.c Bowman/config.c
-	$(CC) $(CFLAGS) -o $@ Bowman/Bowman.c Bowman/config.c $(FRAME_O) $(DIRFUNC_O) $(MD5FUNC_O) $(LIBS) -I Bowman -I Libraries
+bowman: $(FRAME_O) $(DIRFUNC_O) $(MD5FUNC_O) $(SEM_O) Bowman/Bowman.c Bowman/config.c
+	$(CC) $(CFLAGS) -o $@ Bowman/Bowman.c Bowman/config.c $(FRAME_O) $(DIRFUNC_O) $(SEM_O) $(MD5FUNC_O) $(LIBS) -I Bowman -I Libraries
 
 # Poole compilation
 poole: $(FRAME_O) $(DIRFUNC_O) $(MD5FUNC_O) Poole/Poole.c Poole/config.c
@@ -36,4 +40,4 @@ discovery: $(FRAME_O) $(DIRFUNC_O) $(MD5FUNC_O) Discovery/Discovery.c Discovery/
 
 # Clean compiled files and executables
 clean:
-	rm -f bowman poole discovery $(FRAME_O) $(DIRFUNC_O) $(MD5FUNC_O)
+	rm -f bowman poole discovery $(FRAME_O) $(DIRFUNC_O) $(MD5FUNC_O) $(SEM_O)

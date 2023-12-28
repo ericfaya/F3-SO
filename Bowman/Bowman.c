@@ -1,6 +1,8 @@
 #include "Bowman.h"
 #include "config.h"
 
+
+
 Bowman* bowmaneta;
 int numUsuaris;
 char *tokens[MAX_TOKENS];
@@ -8,7 +10,12 @@ int sockfd_poole;
 int isConnectedToPoole = 0;
 int mq_id_queue;
 
-pthread_mutex_t socket_mutex = PTHREAD_MUTEX_INITIALIZER;
+semaphore sem;
+
+
+
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
 
 int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
     char *token, *dataCopy;
@@ -120,6 +127,7 @@ int writeBinaryFile(Frame incoming_frame,FileInfo *downloadInfo) {
     }
 
     ssize_t bytes_written = write(downloadInfo->fd_song, fileDataStart, data_length);
+    printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, downloadInfo->totalBytesReceived);
     if (bytes_written == -1) {
         printF("Error writing to file");
 
@@ -141,19 +149,25 @@ int receiveFileData( FileInfo *downloadInfo) {
     MessageQueue msg;
 
     while (downloadInfo->totalBytesReceived < downloadInfo->fileSize) {
+       // pthread_mutex_lock(&mutex);
+
+        SEM_wait(&sem);
+        int msgReceived = msgrcv(downloadInfo->id_queue, &msg, sizeof(MessageQueue) - sizeof(long), downloadInfo->id_bustia, 0);
+       //pthread_mutex_unlock(&mutex);
+
         //printf("\n\nRebo per la cua %d + id bustia : %d ",downloadInfo->id_queue,downloadInfo->id_bustia);
-            if (msgrcv(downloadInfo->id_queue, &msg, sizeof(MessageQueue)- sizeof(long) , downloadInfo->id_bustia, 0) != -1) {// if (msgrcv(downloadInfo->id_queue, &msg, sizeof(msg) - sizeof(long), downloadInfo->id_bustia, 0) != -1) {
+            if (msgReceived != -1) {
             //  printf("Rebo per la cua %d + id bustia : %ld ",downloadInfo->id_queue,msg.mtype);
             // printf("Receiving data: %s\n\n", msg.frame.data);
 
             if(writeBinaryFile(msg.frame,downloadInfo)==-1)
                 return -1; //Error al escriure al file binary
-            //printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, downloadInfo->totalBytesReceived);
+            
         }
         else{
             printF("Error al rewbre el mensaje\n");
         }
-        //printf("Total data received: %zd bytes\n", downloadInfo->totalBytesReceived);
+        printf("Total data received: %zd bytes\n", downloadInfo->totalBytesReceived);
     }
     
     return (downloadInfo->totalBytesReceived == downloadInfo->fileSize) ? 0 : -1;
@@ -224,12 +238,16 @@ void messageQueue(Frame *frame,int mq_id,int id_bustia) {
     msg.mtype = id_bustia;
 
     //printf("Envio per la cua %d + id bustia : %ld \n\n", mq_id, msg.mtype);
+   // pthread_mutex_lock(&mutex);
     if (msgsnd(mq_id, &msg, sizeof(MessageQueue)- sizeof(long) , 0) == -1) {    //if (msgsnd(mq_id, &msg, sizeof(Frame) - sizeof(long), 0) == -1) {
 
         perror("Error al enviar el mensaje");
+        pthread_mutex_unlock(&mutex);
         exit(EXIT_FAILURE);
     }
-    usleep(4000);
+    SEM_signal(&sem);
+    //pthread_mutex_unlock(&mutex);
+    usleep(1000);
 }
 
 void *socketListener(void *arg) {
@@ -266,11 +284,11 @@ void *socketListener(void *arg) {
             createBinaryFile(&frame, fileInfo); 
             
             processFileResponse(fileInfo); 
+            usleep(4000);
        }
         else if (strcmp(frame.header, "FILE_DATA") == 0) {
 
             int id_bustia = extractIdFromFrame(&frame);
-
             messageQueue(&frame,mq_id,id_bustia);            //implementem cua de missatges;
         }
         
@@ -545,6 +563,10 @@ int main(int argc, char *argv[]) {
         printF("Error al crear la cola de mensajes\n");
         exit(EXIT_FAILURE);
     }
+    
+    SEM_constructor_with_name(&sem, ftok("Bowman.c", 'a'));
+
+    SEM_init(&sem, 0);
 
     write(1, "\n$", 3);
     while (1) {

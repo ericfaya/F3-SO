@@ -11,7 +11,6 @@ int mq_id_queue;
 pthread_mutex_t socket_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
-   // printf("Iniciando fillDownloadInfo...\n");
     char *token, *dataCopy;
 
     dataCopy = strdup(file_info_frame->data);
@@ -20,14 +19,12 @@ int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
         perror("strdup failed");
         return -1;
     }
-//    printf("Data copiada: %s\n", dataCopy);
 
     token = strtok(dataCopy, "&");    // Extracción de FileName
     if (token == NULL) {
         free(dataCopy);
         return -1;
     }
-    //printf("FileName extraído: %s\n", token);
     downloadInfo->fileName = strdup(token);
 
     token = strtok(NULL, "&");    // Extracción de fileSize
@@ -36,7 +33,6 @@ int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
         free(dataCopy);
         return -1;
     }
-   // printf("FileSize extraído: %s\n", token);
     downloadInfo->fileSize = atoi(token);
 
     token = strtok(NULL, "&");    // Extracción de md5sum
@@ -45,7 +41,6 @@ int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
         free(dataCopy);
         return -1;
     }
-    //printf("MD5SUM extraído: %s\n", token);
     downloadInfo->md5sum = strdup(token);
 
     token = strtok(NULL, "&");    // Extracción de songId
@@ -55,11 +50,9 @@ int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
         free(dataCopy);
         return -1;
     }
-    //printf("SongId extraído: %s\n", token);
     downloadInfo->songId = atoi(token);
 
     free(dataCopy);
-    //printf("fillDownloadInfo completado correctamente.\n");
     return 0;
 }
 
@@ -73,12 +66,10 @@ void connectDiscovery(char *tokens[]){
     memset(&server_addr, 0, sizeof(server_addr));//Inicialitza,fica 0s a l'estructura
     server_addr.sin_family = AF_INET;//tipus de familia de socket es tracta
     server_addr.sin_port = htons(bowmaneta[0].portDiscovery);//(Host To Network Short) Converteix port a big endian
-
     
     if (inet_pton(AF_INET, bowmaneta[0].ipDiscovery, &server_addr.sin_addr) < 0) { //Converteix representació en text de la ip a l’equivalent binari (IPv4)
         perror("Invalid address/ Address not supported");
-        //fer free de memoria dinamica
-        exit(EXIT_FAILURE);
+        exit(EXIT_FAILURE);//fer free de memoria dinamica
     }
 
     int sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP); // SOCK_STREAM protocol tcp orientat a connexio//AF_INET familia IPV4
@@ -89,8 +80,7 @@ void connectDiscovery(char *tokens[]){
 
     if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
         perror("Connection Failed");
-        //fer free de memoria dinamica
-        exit(EXIT_FAILURE);
+        exit(EXIT_FAILURE);  //fer free de memoria dinamica
         close(sockfd); //Per si acas
     }
     
@@ -121,7 +111,6 @@ void processPlaylistsResponse(Frame *frame) {
 }
 
 int writeBinaryFile(Frame incoming_frame,FileInfo *downloadInfo) {
-    //write(1,"*********************",sizeof("*********************"));
     int idAndSeparatorLength = sizeof(int) + 1;
     char *fileDataStart = incoming_frame.data + idAndSeparatorLength;
     ssize_t data_length = FRAME_SIZE - 3 - incoming_frame.header_length - idAndSeparatorLength;
@@ -152,20 +141,14 @@ int receiveFileData( FileInfo *downloadInfo) {
     MessageQueue msg;
 
     while (downloadInfo->totalBytesReceived < downloadInfo->fileSize) {
-   
         //printf("\n\nRebo per la cua %d + id bustia : %d ",downloadInfo->id_queue,downloadInfo->id_bustia);
+            if (msgrcv(downloadInfo->id_queue, &msg, sizeof(MessageQueue)- sizeof(long) , downloadInfo->id_bustia, 0) != -1) {// if (msgrcv(downloadInfo->id_queue, &msg, sizeof(msg) - sizeof(long), downloadInfo->id_bustia, 0) != -1) {
+            //  printf("Rebo per la cua %d + id bustia : %ld ",downloadInfo->id_queue,msg.mtype);
+            // printf("Receiving data: %s\n\n", msg.frame.data);
 
-               if (msgrcv(downloadInfo->id_queue, &msg, sizeof(MessageQueue)- sizeof(long) , downloadInfo->id_bustia, 0) != -1) {// if (msgrcv(downloadInfo->id_queue, &msg, sizeof(msg) - sizeof(long), downloadInfo->id_bustia, 0) != -1) {
-              //  printf("Rebo per la cua %d + id bustia : %ld ",downloadInfo->id_queue,msg.mtype);
-               // printf("Receiving data: %s\n\n", msg.frame.data);
-
-                //print_frame5(&msg.frame);
-            //if (strcmp(msg.frame.header, "FILE_DATA") == 0) {
-              //  print_frame5(&msg.frame);
-                if(writeBinaryFile(msg.frame,downloadInfo)==-1)
-                    return -1; //Error al escriure al file binary
-                //printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, downloadInfo->totalBytesReceived);
-            //} 
+            if(writeBinaryFile(msg.frame,downloadInfo)==-1)
+                return -1; //Error al escriure al file binary
+            //printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, downloadInfo->totalBytesReceived);
         }
         else{
             printF("Error al rewbre el mensaje\n");
@@ -183,9 +166,8 @@ void *downloadSongs(void *arg) {
     printf("ID Queue: %d\n", downloadInfo->id_queue);
     printf("ID Bustia: %d\n", downloadInfo->id_bustia);
 
-    // You can also print frame information if needed
-     if (receiveFileData( downloadInfo) == 0){
-        //printf("Download completed\n");  
+   
+     if (receiveFileData( downloadInfo) == 0){ // You can also print frame information if needed
 
         char *calculated_md5 = calculateMD5(downloadInfo->songPath);
             //printf("MD5 values match. Expected: %s, \nCalculated: %s\n and path %s", downloadInfo->md5sum, calculated_md5,downloadInfo->songPath);
@@ -200,10 +182,7 @@ void *downloadSongs(void *arg) {
 
         }
         free(calculated_md5);
-    }/* else {
-        printF("Download failed\n");  
-    }*/
-       //close(downloadInfo->fd_song);
+    }
 
     return NULL;
 }
@@ -224,8 +203,6 @@ void createBinaryFile(Frame *frame,FileInfo *fileInfo) {
         free(fileInfo->fileName);
         free(fileInfo->md5sum);
         free(fileInfo->songPath);
-        //pthread_exit(NULL);
-       // return NULL;
     } 
 }
 
@@ -252,7 +229,7 @@ void messageQueue(Frame *frame,int mq_id,int id_bustia) {
         perror("Error al enviar el mensaje");
         exit(EXIT_FAILURE);
     }
-    usleep(2000);
+    usleep(4000);
 }
 
 void *socketListener(void *arg) {
@@ -289,14 +266,10 @@ void *socketListener(void *arg) {
             createBinaryFile(&frame, fileInfo); 
             
             processFileResponse(fileInfo); 
-            //sleep(1);   
        }
         else if (strcmp(frame.header, "FILE_DATA") == 0) {
 
             int id_bustia = extractIdFromFrame(&frame);
-           // printf("id bustia fora FILE DATA: %d\n ",id_bustia);
-            //fileInfo->id_bustia=id_bustia;
-           // sleep(5);
 
             messageQueue(&frame,mq_id,id_bustia);            //implementem cua de missatges;
         }
@@ -461,13 +434,13 @@ void logout(){
     int errorSocketOrNot=read(sockfd_poole, info, 256);//bowman recibe from poole
     Frame frameAcknoledge;
     printaAcknowledge(info,&frameAcknoledge);
-   // char *header;
+
     if(errorSocketOrNot!=-1 ){
         if(strcmp(frameAcknoledge.header,"[CON_OK]")){
             close(sockfd_poole);//Crec que no es tindra que fer perque sino es tanca la comunicacio
             printF("Thanks for using HAL 9000, see you soon, music lover!\n");
             exit(0);
-        }//ELSE //  header = "CON_KO";
+        }
     }   
 }
 
@@ -573,8 +546,6 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-
-
     write(1, "\n$", 3);
     while (1) {
        
@@ -583,37 +554,25 @@ int main(int argc, char *argv[]) {
             free(command); 
             continue; 
         }
-        printf("NEW COMANDA: %s\n",command);
         int newCommand=controleCommands(command, &connectedOrNot);
 
-
-
-         //pthread_mutex_lock(&socket_mutex);
         if(newCommand==1){
             ThreadArgs *threadArgs = malloc(sizeof(ThreadArgs));
-            if (threadArgs == NULL) {
-                // Handle the case where malloc fails to allocate memory
+            if (threadArgs == NULL) { // Handle the case where malloc fails to allocate memory
                 perror("Error allocating memory for threadArgs");
                 exit(EXIT_FAILURE);
             }
 
             threadArgs->mq_id = mq_id_queue;
-         // threadArgs->msg = &msgParameter;  // Assign the address of msgParam
             pthread_t listenerThread;
-        printf("\n\ncreate to listen: %s",command);
 
             if (pthread_create(&listenerThread, NULL, socketListener, threadArgs) != 0) {
                 perror("Error al crear el hilo de escucha");
                 exit(EXIT_FAILURE);
                         
                 close(sockfd_poole);
-                //return 0;
             }
         }
-        //pthread_mutex_unlock(&socket_mutex); 
-
-
-
 
         write(1, "\n$", 3);
         free(command); 

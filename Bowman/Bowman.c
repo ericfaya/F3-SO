@@ -1,17 +1,16 @@
 #include "Bowman.h"
 #include "config.h"
 
-
-
 Bowman* bowmaneta;
 int numUsuaris;
 char *tokens[MAX_TOKENS];
 int sockfd_poole;
 int isConnectedToPoole = 0;
 int mq_id_queue;
-
+int tocaTancar=1;
 semaphore sem;
-
+pthread_t listenerThread;
+pthread_t downloadThread;
 
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -148,10 +147,9 @@ int receiveFileData( FileInfo *downloadInfo) {
 
     MessageQueue msg;
 
-    while (downloadInfo->totalBytesReceived < downloadInfo->fileSize) {
+    while (downloadInfo->totalBytesReceived < downloadInfo->fileSize && tocaTancar == 1) {
        // pthread_mutex_lock(&mutex);
 
-        SEM_wait(&sem);
         int msgReceived = msgrcv(downloadInfo->id_queue, &msg, sizeof(MessageQueue) - sizeof(long), downloadInfo->id_bustia, 0);
        //pthread_mutex_unlock(&mutex);
 
@@ -168,6 +166,8 @@ int receiveFileData( FileInfo *downloadInfo) {
             printF("Error al rewbre el mensaje\n");
         }
         printf("Total data received: %zd bytes\n", downloadInfo->totalBytesReceived);
+            SEM_signal(&sem);
+
     }
     
     return (downloadInfo->totalBytesReceived == downloadInfo->fileSize) ? 0 : -1;
@@ -224,11 +224,12 @@ void processFileResponse(FileInfo *fileInfo) {
        
     FileInfo *threadInfo = malloc(sizeof(FileInfo));
     *threadInfo = *fileInfo;
-    pthread_t downloadThread;
+    //pthread_t downloadThread;
     if (pthread_create(&downloadThread, NULL, downloadSongs, threadInfo) != 0) {    // nou thread pels Downloads
         perror("Error creating download thread");
         free(threadInfo);
     }
+    usleep(1000);
 }
 
 void messageQueue(Frame *frame,int mq_id,int id_bustia) {
@@ -236,6 +237,7 @@ void messageQueue(Frame *frame,int mq_id,int id_bustia) {
 
     msg.frame = *frame;
     msg.mtype = id_bustia;
+        SEM_wait(&sem);
 
     //printf("Envio per la cua %d + id bustia : %ld \n\n", mq_id, msg.mtype);
    // pthread_mutex_lock(&mutex);
@@ -245,9 +247,8 @@ void messageQueue(Frame *frame,int mq_id,int id_bustia) {
         pthread_mutex_unlock(&mutex);
         exit(EXIT_FAILURE);
     }
-    SEM_signal(&sem);
     //pthread_mutex_unlock(&mutex);
-    usleep(1000);
+   // usleep(1000);
 }
 
 void *socketListener(void *arg) {
@@ -263,7 +264,7 @@ void *socketListener(void *arg) {
     fileInfo->id_queue = mq_id;
    // printf("Envio per la cua %d + id bustia :\n\n", mq_id );
 
-    while (1) {
+    while (tocaTancar==1) {
 
         Frame frame;
        
@@ -284,7 +285,7 @@ void *socketListener(void *arg) {
             createBinaryFile(&frame, fileInfo); 
             
             processFileResponse(fileInfo); 
-            usleep(4000);
+           // usleep(4000);
        }
         else if (strcmp(frame.header, "FILE_DATA") == 0) {
 
@@ -440,11 +441,16 @@ void logoutDiscovery(){
 }
 
 void logout(){
+     pthread_cancel(listenerThread);
+    pthread_cancel(downloadThread);
     logoutDiscovery(); //A tokens li envia el nom del servidor
         msgctl (mq_id_queue, IPC_RMID, (struct msqid_ds *)NULL);    //Que algun dels dos procesos elimini la bustia
+   
 
+    tocaTancar=0;
     char frame_buffer[FRAME_SIZE] = {0};
     fillFrame(frame_buffer,0x02,"EXIT",bowmaneta[0].fullName);
+    freeMemory(); 
 
     send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
     
@@ -452,14 +458,16 @@ void logout(){
     int errorSocketOrNot=read(sockfd_poole, info, 256);//bowman recibe from poole
     Frame frameAcknoledge;
     printaAcknowledge(info,&frameAcknoledge);
-
+   // print_frame2(&frameAcknoledge);
+    //printf("Error: %d",errorSocketOrNot);
     if(errorSocketOrNot!=-1 ){
-        if(strcmp(frameAcknoledge.header,"[CON_OK]")){
+        if(strcmp(frameAcknoledge.header,"CON_OK")){
             close(sockfd_poole);//Crec que no es tindra que fer perque sino es tanca la comunicacio
             printF("Thanks for using HAL 9000, see you soon, music lover!\n");
             exit(0);
         }
     }   
+  
 }
 
 int controleCommands(char *whichCommand, int *connectedOrNot) {
@@ -523,7 +531,7 @@ int controleCommands(char *whichCommand, int *connectedOrNot) {
     return 1;
 }
 
-/*void freeMemory(Bowman* bowmaneta, int numUsuaris){   //lliberar memoria pero no entenc el numUsuaris??? TODO CANVIARHO
+void freeMemory(){   //lliberar memoria pero no entenc el numUsuaris??? TODO CANVIARHO
 
     int i;
     for(i=0; i<numUsuaris; i++){
@@ -532,9 +540,15 @@ int controleCommands(char *whichCommand, int *connectedOrNot) {
         free(bowmaneta[i].ipDiscovery);
     }
     free(bowmaneta);
-}*/
+}
+
+void kctrlc(){ 
+    logout();
+}
 
 int main(int argc, char *argv[]) {
+    signal(SIGINT, kctrlc);
+
     if (argc != 2) {
         printF("ERROR: Incorrect number of arguments\n");
         return -1;
@@ -566,10 +580,10 @@ int main(int argc, char *argv[]) {
     
     SEM_constructor_with_name(&sem, ftok("Bowman.c", 'a'));
 
-    SEM_init(&sem, 0);
+    SEM_init(&sem, 1);
 
     write(1, "\n$", 3);
-    while (1) {
+    while (tocaTancar==1) {
        
         command = read_until(STDIN_FILENO, '\n');         /* 1R THREAD ESCOLTAR DE LA TERMINAL/ //canvi fet que deien els becaris*/
         if (command == NULL || strlen(command) == 0) {// Leer el comando del usuario
@@ -586,7 +600,7 @@ int main(int argc, char *argv[]) {
             }
 
             threadArgs->mq_id = mq_id_queue;
-            pthread_t listenerThread;
+          //  pthread_t listenerThread;
 
             if (pthread_create(&listenerThread, NULL, socketListener, threadArgs) != 0) {
                 perror("Error al crear el hilo de escucha");

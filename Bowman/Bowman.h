@@ -57,7 +57,7 @@ typedef struct {
     //MessageQueue *msg;
 } ThreadArgs;
 
-void freeMemory(Bowman* bowmaneta,int numUsuaris);
+void freeMemory();
 void printInfo(Bowman* bowmaneta);
 void connectDiscovery(char *tokens[]);
 void download(int *connectedOrNot, char *commandInput) ;

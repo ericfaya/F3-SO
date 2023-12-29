@@ -54,8 +54,14 @@ typedef struct {
 
 typedef struct {
     int mq_id;
+    int newCommand;
     //MessageQueue *msg;
 } ThreadArgs;
+
+typedef struct SongNode {
+    FileInfo *fileInfo;//Ho fem constant ja que no voldrem modificar res,nomes veure informacio
+    struct SongNode* next;
+} SongNode;
 
 void freeMemory();
 void printInfo(Bowman* bowmaneta);

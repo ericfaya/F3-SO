@@ -67,7 +67,7 @@ void checkDownload(int *connectedOrNot);
 void clearDownload(int *connectedOrNot);
 int controleCommands(char whichCommand[50],int *connectedOrNot);
 void kctrlc();
-void logout();
+void logout(int haTancatSocketPoole);
 int connectBowman(char *tokens[]);
 
 #endif

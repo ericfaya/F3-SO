@@ -58,7 +58,10 @@ typedef struct {
     int id;
 } FileTransferInfo;
 
-
+typedef struct ClientNode {
+    int sockfd;
+    struct ClientNode* next;
+} ClientNode;
 
 
 

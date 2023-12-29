@@ -76,9 +76,9 @@ int receive_frame(int sockfd, Frame *frame) {
         if (bytes_read < 0) {
             write(STDOUT_FILENO, "Error reading from socket\n", sizeof("Error reading from socket\n"));   
             //perror("Error reading from socket"); NOSE SI SE POT UTILITZAR
-            return -1;
+            return -2;
         } else if (bytes_read == 0) {
-            write(STDOUT_FILENO, "Socket closed unexpectedly.\n", sizeof("Socket closed unexpectedly.\n"));   
+           // write(STDOUT_FILENO, "Socket closed unexpectedly.\n", sizeof("Socket closed unexpectedly.\n"));   
             //fprintf(stderr, "Socket closed unexpectedly.\n");
             return -1;
         }

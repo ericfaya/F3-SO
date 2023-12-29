@@ -96,11 +96,11 @@ void connectDiscovery(char *tokens[]){
     write (STDOUT_FILENO, buffer, strlen(buffer));
     free(buffer);
 }
-void processSongsResponse(Frame *frame) {
+void processSongsResponse(Frame *frame) { //TODO es podria ficar al frame.c
     printF("songs:\n");
     print_frame2(frame);
 }
-void processPlaylistsResponse(Frame *frame) {
+void processPlaylistsResponse(Frame *frame) {//TODO es podria ficar al frame.c
     printF("playlists:\n");
     print_frame2(frame);
 }
@@ -186,7 +186,6 @@ void createBinaryFile(Frame *frame,FileInfo *fileInfo) {
     } 
 }
 
-
 void processFileResponse(FileInfo *fileInfo) {
        
     FileInfo *threadInfo = malloc(sizeof(FileInfo));
@@ -203,9 +202,11 @@ void messageQueue(Frame *frame,int mq_id,int id_bustia) {
     msg.mtype = id_bustia;
 
     //printf("Envio per la cua %d + id bustia : %ld \n\n", mq_id, msg.mtype);
-    if (msgsnd(mq_id, &msg, sizeof(MessageQueue)- sizeof(long) , 0) == -1) {    //if (msgsnd(mq_id, &msg, sizeof(Frame) - sizeof(long), 0) == -1) {
-        perror("Error al enviar el mensaje");
-        exit(EXIT_FAILURE);
+    if( tocaTancar == 1){
+        if (msgsnd(mq_id, &msg, sizeof(MessageQueue)- sizeof(long) , 0) == -1) {    //if (msgsnd(mq_id, &msg, sizeof(Frame) - sizeof(long), 0) == -1) {
+            perror("Error al enviar el mensaje");
+            exit(EXIT_FAILURE);
+        }
     }
     usleep(406);
 }
@@ -222,12 +223,11 @@ void *socketListener(void *arg) {
    // printf("Envio per la cua %d + id bustia :\n\n", mq_id );
     while (tocaTancar==1) {
         Frame frame;
-      /* if(sockfd_poole==0){
-            logout();
-        } */
-        if (receive_frame(sockfd_poole, &frame) < 0 && tocaTancar==1) {
+    
+        ssize_t  bytes_read=receive_frame(sockfd_poole, &frame) ;//receive_frame(sockfd_poole, &frame) < 0
+        if (bytes_read == -1 && tocaTancar==1) {
             printF("Error poole has been disconnected\n");
-            logout();
+            logout(1);
             break;
         } 
         
@@ -390,11 +390,12 @@ void freeMemory(){   //lliberar memoria pero no entenc el numUsuaris??? TODO CAN
     free(bowmaneta);
 }
 
-void logout(){
+void logout(int haTancatSocketPoole){
     pthread_cancel(listenerThread);
+
     pthread_cancel(downloadThread);
-//printf("Hola\n");
     logoutDiscovery(); //A tokens li envia el nom del servidor
+
     msgctl (mq_id_queue, IPC_RMID, (struct msqid_ds *)NULL);    //Que algun dels dos procesos elimini la bustia
     tocaTancar=0;
 
@@ -405,12 +406,14 @@ void logout(){
 
     char info[256];
     int errorSocketOrNot=read(sockfd_poole, info, 256);//bowman recibe from poole
+
     Frame frameAcknoledge;
     printaAcknowledge(info,&frameAcknoledge);
 
     if(errorSocketOrNot!=-1 ){
         if(strcmp(frameAcknoledge.header,"[CON_OK]")){
-            close(sockfd_poole);//Crec que no es tindra que fer perque sino es tanca la comunicacio
+            if(haTancatSocketPoole==0)
+                close(sockfd_poole);//Crec que no es tindra que fer perque sino es tanca la comunicacio
             printF("Thanks for using HAL 9000, see you soon, music lover!\n");
             exit(0);
         }
@@ -419,7 +422,7 @@ void logout(){
 }
 
 void kctrlc(){ 
-    logout();
+    logout(0);
 }
 
 int controleCommands(char *whichCommand, int *connectedOrNot) {
@@ -439,11 +442,11 @@ int controleCommands(char *whichCommand, int *connectedOrNot) {
             } 
             flag=1;
         }
-        if(strcasecmp("LOGOUT",whichCommand1) == 0){//TODO F2
-            logout();
+        if(strcasecmp("LOGOUT",whichCommand1) == 0){//TODO F2 PRINTAR MILLOR
+            logout(0);
             return 0;
         }
-        if(strcasecmp("LIST",whichCommand1) == 0){//TODO F2
+        if(strcasecmp("LIST",whichCommand1) == 0){//TODO F2 PRINTAR MILLOR
             whichCommand2=strtok(NULL, &delimiter);//Si li fiquem NULL començara la segona busqueda per on es va quedar cuan es va cridar per primer cop strtok
             if(whichCommand2 != NULL){
                 if(strcasecmp("SONGS",whichCommand2) == 0){
@@ -508,11 +511,13 @@ int main(int argc, char *argv[]) {
         command = read_until(STDIN_FILENO, '\n');         /* 1R THREAD ESCOLTAR DE LA TERMINAL/ //canvi fet que deien els becaris*/
         if (command == NULL || strlen(command) == 0) {// Leer el comando del usuario
             free(command); 
+            break;
             continue; 
         }
+
         int newCommand=controleCommands(command, &connectedOrNot);
 
-        if(newCommand==1){
+        if(newCommand==1 && connectedOrNot==1){
             ThreadArgs *threadArgs = malloc(sizeof(ThreadArgs));
             if (threadArgs == NULL) { // Handle the case where malloc fails to allocate memory
                 perror("Error allocating memory for threadArgs");
@@ -533,6 +538,7 @@ int main(int argc, char *argv[]) {
         write(1, "\n$", 3);
         free(command); 
     }
-    msgctl (mq_id_queue, IPC_RMID, (struct msqid_ds *)NULL);    //Que algun dels dos procesos elimini la bustia
+    logout(0);
+    //msgctl (mq_id_queue, IPC_RMID, (struct msqid_ds *)NULL);    //Que algun dels dos procesos elimini la bustia
     return 0;
 }

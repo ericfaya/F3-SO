@@ -143,6 +143,7 @@ int receiveFileData( FileInfo *downloadInfo) {
             printF("Error al rewbre el mensaje\n");
         }
         //printf("Total data received: %zd bytes\n", downloadInfo->totalBytesReceived);
+                    SEM_signal(&sem);
     }
     
     return (downloadInfo->totalBytesReceived == downloadInfo->fileSize) ? 0 : -1;
@@ -198,9 +199,11 @@ void processFileResponse(FileInfo *fileInfo) {
     }
 }
 void messageQueue(Frame *frame,int mq_id,int id_bustia) {
+            SEM_wait(&sem);
     MessageQueue msg;
     msg.frame = *frame;
     msg.mtype = id_bustia;
+
     //printf("Envio per la cua %d + id bustia : %ld \n\n", mq_id, msg.mtype);
     if (msgsnd(mq_id, &msg, sizeof(MessageQueue)- sizeof(long) , 0) == -1) {    //if (msgsnd(mq_id, &msg, sizeof(Frame) - sizeof(long), 0) == -1) {
         perror("Error al enviar el mensaje");
@@ -497,7 +500,8 @@ int main(int argc, char *argv[]) {
         printF("Error al crear la cola de mensajes\n");
         exit(EXIT_FAILURE);
     }
-
+        SEM_constructor_with_name(&sem, ftok("Bowman.c", 'a'));
+    SEM_init(&sem, 1);
     write(1, "\n$", 3);
     while (tocaTancar==1) {
         command = read_until(STDIN_FILENO, '\n');         /* 1R THREAD ESCOLTAR DE LA TERMINAL/ //canvi fet que deien els becaris*/

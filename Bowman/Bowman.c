@@ -1,15 +1,14 @@
 #include "Bowman.h"
 #include "config.h"
+
 Bowman* bowmaneta;
 int numUsuaris;
 char *tokens[MAX_TOKENS];
 int sockfd_poole;
 int isConnectedToPoole = 0;
 int mq_id_queue;
-pthread_mutex_t socket_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int tocaTancar=1;
-semaphore sem;
 pthread_t listenerThread;
 pthread_t downloadThread;
 
@@ -140,10 +139,9 @@ int receiveFileData( FileInfo *downloadInfo) {
         //printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, downloadInfo->totalBytesReceived);
         }
         else{
-            printF("Error al rewbre el mensaje\n");
+            break;//S'ha tancat el socket o algo aixi
         }
         //printf("Total data received: %zd bytes\n", downloadInfo->totalBytesReceived);
-                    SEM_signal(&sem);
     }
     
     return (downloadInfo->totalBytesReceived == downloadInfo->fileSize) ? 0 : -1;
@@ -188,6 +186,7 @@ void createBinaryFile(Frame *frame,FileInfo *fileInfo) {
     } 
 }
 
+
 void processFileResponse(FileInfo *fileInfo) {
        
     FileInfo *threadInfo = malloc(sizeof(FileInfo));
@@ -199,7 +198,6 @@ void processFileResponse(FileInfo *fileInfo) {
     }
 }
 void messageQueue(Frame *frame,int mq_id,int id_bustia) {
-            SEM_wait(&sem);
     MessageQueue msg;
     msg.frame = *frame;
     msg.mtype = id_bustia;
@@ -209,7 +207,7 @@ void messageQueue(Frame *frame,int mq_id,int id_bustia) {
         perror("Error al enviar el mensaje");
         exit(EXIT_FAILURE);
     }
-    usleep(4000);
+    usleep(406);
 }
 
 void *socketListener(void *arg) {
@@ -224,11 +222,15 @@ void *socketListener(void *arg) {
    // printf("Envio per la cua %d + id bustia :\n\n", mq_id );
     while (tocaTancar==1) {
         Frame frame;
-       
+      /* if(sockfd_poole==0){
+            logout();
+        } */
         if (receive_frame(sockfd_poole, &frame) < 0 && tocaTancar==1) {
-            printF("Error");
+            printF("Error poole has been disconnected\n");
+            logout();
             break;
-        }  
+        } 
+        
         if (strcmp(frame.header, "SONGS_RESPONSE") == 0) {
             processSongsResponse(&frame);
         } else if (strcmp(frame.header, "PLAYLISTS_RESPONSE") == 0) {
@@ -391,7 +393,7 @@ void freeMemory(){   //lliberar memoria pero no entenc el numUsuaris??? TODO CAN
 void logout(){
     pthread_cancel(listenerThread);
     pthread_cancel(downloadThread);
-
+//printf("Hola\n");
     logoutDiscovery(); //A tokens li envia el nom del servidor
     msgctl (mq_id_queue, IPC_RMID, (struct msqid_ds *)NULL);    //Que algun dels dos procesos elimini la bustia
     tocaTancar=0;
@@ -476,7 +478,7 @@ int controleCommands(char *whichCommand, int *connectedOrNot) {
 
 int main(int argc, char *argv[]) {
     signal(SIGINT, kctrlc);
-    //signal(SIGKILL, kctrlc);
+    signal(SIGKILL, kctrlc);
 
     if (argc != 2) {
         printF("ERROR: Incorrect number of arguments\n");
@@ -500,8 +502,7 @@ int main(int argc, char *argv[]) {
         printF("Error al crear la cola de mensajes\n");
         exit(EXIT_FAILURE);
     }
-        SEM_constructor_with_name(&sem, ftok("Bowman.c", 'a'));
-    SEM_init(&sem, 1);
+  
     write(1, "\n$", 3);
     while (tocaTancar==1) {
         command = read_until(STDIN_FILENO, '\n');         /* 1R THREAD ESCOLTAR DE LA TERMINAL/ //canvi fet que deien els becaris*/

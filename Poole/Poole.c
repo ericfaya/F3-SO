@@ -1,13 +1,56 @@
 #include "Poole.h"
 #include "config.h"
+
 Poole *poolete;
 int numUsuaris;//Hem de saber cuantradas usuaris estan conectats en el servidor(discovery)
 int sockfd_poole_server;
-int max_sd ;
-fd_set master_set;
-int *clientrada_sockets; // Array dinamic per sockets clients (de moment no lhe ficat)
-int capacity = 1; // Capacitat inicial
+
 pthread_mutex_t clientrada_sockets_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex per larray
+ClientNode* head = NULL;
+
+void addClient(int sockfd) {
+    ClientNode* newNode = (ClientNode*)malloc(sizeof(ClientNode));
+    if (!newNode) {
+        perror("malloc failed");
+        exit(EXIT_FAILURE);
+    }
+
+    newNode->sockfd = sockfd;
+    newNode->next = NULL;
+
+    pthread_mutex_lock(&clientrada_sockets_mutex);
+
+    if (head == NULL) {
+        head = newNode;
+    } else {
+        ClientNode* current = head;
+        while (current->next != NULL) {
+            current = current->next;
+        }
+        current->next = newNode;
+    }
+
+    pthread_mutex_unlock(&clientrada_sockets_mutex);
+}
+
+void removeAllClients() {
+    pthread_mutex_lock(&clientrada_sockets_mutex);
+
+    ClientNode* current = head;
+    ClientNode* next;
+
+    while (current != NULL) {
+        next = current->next;
+        close(current->sockfd); // Close the socket
+        free(current);
+        current = next;
+    }
+
+    head = NULL;
+
+    pthread_mutex_unlock(&clientrada_sockets_mutex);
+}
+
 void sendSongListResponse(int socket) {
     char data2[FRAME_SIZE - 3 - strlen("SONGS_RESPONSE")]; // -3 por 'type' y 'header_length'.
     char *songs = (char *)malloc(1024);
@@ -51,7 +94,6 @@ void *sendFileData(void *arg) {
     ssize_t totalBytesSent = 0;
     ssize_t readSize;
     while ((readSize = read(fd_file, buffer, data_capacity)) > 0) {
-        usleep(4000);
         char frame_buffer[FRAME_SIZE] = {0};
 
         *(int *)(frame_buffer + 3 + header_len) = info->id;
@@ -60,6 +102,8 @@ void *sendFileData(void *arg) {
       
         ssize_t frameDataSize = readSize + sizeof(int) + 1; // Tamaño de los datos en el frame
         fillFrame2(frame_buffer, 0x04, header, frame_buffer + 3 + header_len, frameDataSize);
+                usleep(406);
+
         send(info->socket, frame_buffer, FRAME_SIZE, 0);
         //printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", readSize, totalBytesSent);
         totalBytesSent += readSize;
@@ -247,7 +291,8 @@ void connectToBowman(Poole *poolete) {
             perror("accept");
             continue;  
         }
-      
+          addClient(newsock);
+
         ThreadArgs *args = malloc(sizeof(ThreadArgs));
         if (!args) {
             perror("Error al asignar memoria para args");
@@ -267,35 +312,22 @@ void connectToBowman(Poole *poolete) {
     }
     
     // Libera los recursos al final.
-    free(clientrada_sockets);
     close(sockfd_poole_server);
 }
-    
-void freeAndClose(Poole *poolete,int numUsuaris){ 
-    int i;
-    for(i=0; i<numUsuaris; i++){
-        free(poolete[i].fullName);
-        free(poolete[i].pathName);
-        free(poolete[i].ipDiscovery);
-        free(poolete[i].ipPoole);
-    }
-    free(poolete);
-}
+
 void kctrlc(){ 
-    freeAndClose(/*poole_frame,*/poolete,numUsuaris);
-    for (int i = 0; i <= max_sd; ++i) {// sockets amb arrays ja afegits i creats
-        int sd = clientrada_sockets[i];
-        close(sd);
-        FD_CLR(sd, &master_set);
-        clientrada_sockets[i] = 0;
-    }
+
+    pthread_mutex_destroy(&clientrada_sockets_mutex);
+    removeAllClients();
     close(sockfd_poole_server);
-    //logout(); //SIGNAL CONTROL+C TODO: S'HAURA DE FER VARIABLE GLOBAL  crec EL FD SOCKET :int sockfd_poole 
+    printF("Thanks for using HAL 9000, see you soon, music lover!\n");
+
+    exit(0);
 }
 int main(int argc, char *argv[]){
-    //Poole *poolete;
-    //int numUsuaris;//Hem de saber cuantradas usuaris estan conectats en el servidor(discovery)
     signal(SIGINT, kctrlc);
+    signal(SIGKILL, kctrlc);
+
     if (argc != 2){
         printF("ERROR: Incorrect number of argumentradas\n");
         return -1;
@@ -346,6 +378,6 @@ int main(int argc, char *argv[]){
     write(STDOUT_FILENO, buffer, strlen(buffer));   
     free(buffer);
     connectToBowman(poolete);
-    freeAndClose(/*poole_frame,*/poolete,numUsuaris);
+    //freeAndClose(/*poole_frame,*/poolete,numUsuaris);
     return 0;  
 }

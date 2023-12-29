@@ -191,7 +191,7 @@ void processFileResponse(FileInfo *fileInfo) {
        
     FileInfo *threadInfo = malloc(sizeof(FileInfo));
     *threadInfo = *fileInfo;
-    //pthread_t downloadThread;
+    pthread_t downloadThread;
     if (pthread_create(&downloadThread, NULL, downloadSongs, threadInfo) != 0) {    // nou thread pels Downloads
         perror("Error creating download thread");
         free(threadInfo);
@@ -396,18 +396,15 @@ void logout(){
 
     char frame_buffer[FRAME_SIZE] = {0};
     fillFrame(frame_buffer,0x02,"EXIT",bowmaneta[0].fullName);
-    freeMemory(); 
-
     send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
 
     char info[256];
     int errorSocketOrNot=read(sockfd_poole, info, 256);//bowman recibe from poole
     Frame frameAcknoledge;
     printaAcknowledge(info,&frameAcknoledge);
-   // print_frame2(&frameAcknoledge);
-    //printf("Error: %d",errorSocketOrNot);
+
     if(errorSocketOrNot!=-1 ){
-        if(strcmp(frameAcknoledge.header,"CON_OK")){
+        if(strcmp(frameAcknoledge.header,"[CON_OK]")){
             close(sockfd_poole);//Crec que no es tindra que fer perque sino es tanca la comunicacio
             printF("Thanks for using HAL 9000, see you soon, music lover!\n");
             exit(0);

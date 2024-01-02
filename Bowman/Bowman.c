@@ -26,7 +26,8 @@ void printBarraProgres(FileInfo *fileInfo) {
    /* for (int i = 0; i < progressChars; ++i) {// Imprimir '=' para la barra de progreso completada
         printf("=");
     }
-
+  
+  
     for (int i = progressChars; i < 50; ++i) {// Imprimir espacios en blanco para la parte restante de la barra de progreso
          printf(" ");
     } */

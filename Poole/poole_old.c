@@ -75,31 +75,6 @@ void sendPlayListResponse(int socket) {
 void *sendFileData(void *arg) {
     FileTransferInfo *info = (FileTransferInfo *)arg;
  
-    struct stat st;
-    if (stat(info->filePath, &st) == -1) {
-        perror("Error al obtener información del archivo");
-        return NULL;//return -1;
-    }
-    int file_size = st.st_size;
-    char *md5sum = calculateMD5(info->filePath);        // Calcular el MD5SUM
-    if (md5sum == NULL) {
-        return NULL;//return -1;
-    }
-    int data_info_size = strlen(info->song_name) + 20 + 32 + 2;         // calculem tamany de data amb els 3 components
-    char *data_info = malloc(data_info_size);
-    if (data_info == NULL) {
-        perror("No se pudo asignar memoria para data_info");
-        free(md5sum);
-        return NULL;//return -1;
-    }
-    snprintf(data_info, data_info_size, "%s&%d&%s&%d",info->song_name , file_size, md5sum,info->id);        //trama pel primer frame, el del md5
-    char frame_buffer[FRAME_SIZE];        // Enviar la trama
-    fillFrame(frame_buffer, 0x04, "NEW_FILE", data_info);
-    send(info->socket, frame_buffer, FRAME_SIZE, 0); //aquest l'envia bé
-
-    free(data_info); 
-    free(md5sum);   
-
     int fd_file = open(info->filePath, O_RDONLY);
     if (fd_file == -1) {
         perror("Error opening file");
@@ -138,11 +113,8 @@ void *sendFileData(void *arg) {
     }
    
     close(fd_file);
-    free(info->song_name);
-    free(info->filePath);
-
-    // Free the memory for transferInfo
     free(info);
+    
     return NULL;
 }
 
@@ -160,7 +132,7 @@ void enviarAcknowledge(int newsock,int errorSocketOrNot) {
     send(newsock, frame_buffer, 256, 0);//Bowman send poole
 }
 
-int downloadSong(int socket,Frame *incoming_frame) {
+void downloadSong(Frame *incoming_frame) {
     char path_found[PATH_MAX];
     char *song_name = incoming_frame->data; 
     char *buffer;
@@ -169,46 +141,48 @@ int downloadSong(int socket,Frame *incoming_frame) {
     free(buffer);
     int found = findSongInDirectory("Files/floyd", song_name, path_found);
     if (found) {
-
-
+        struct stat st;
+        if (stat(path_found, &st) == -1) {
+            perror("Error al obtener información del archivo");
+            return -1;
+        }
+        int file_size = st.st_size;
+        char *md5sum = calculateMD5(path_found);        // Calcular el MD5SUM
+        if (md5sum == NULL) {
+            return -1;
+        }
+        int data_info_size = strlen(song_name) + 20 + 32 + 2;         // calculem tamany de data amb els 3 components
+        char *data_info = malloc(data_info_size);
+        if (data_info == NULL) {
+            perror("No se pudo asignar memoria para data_info");
+            free(md5sum);
+            return -1;
+        }
         int idNumRandom = 0 + rand() % 999;
-        
+        snprintf(data_info, data_info_size, "%s&%d&%s&%d", song_name, file_size, md5sum,idNumRandom);        //trama pel primer frame, el del md5
+        char frame_buffer[FRAME_SIZE];        // Enviar la trama
+        fillFrame(frame_buffer, 0x04, "NEW_FILE", data_info);
+        send(*newsock, frame_buffer, FRAME_SIZE, 0); //aquest l'envia bé
+
         FileTransferInfo *transferInfo = malloc(sizeof(FileTransferInfo));
         if (transferInfo == NULL) {
             perror("Error allocating memory for file transfer info");
             // Manejar error
             return -1;
         }
-
-        transferInfo->filePath = strdup(path_found);
-        transferInfo->song_name = strdup(song_name);
-
-        if (transferInfo->filePath == NULL || transferInfo->song_name == NULL) {
-            perror("Error allocating memory for filePath or song_name");
-            // Handle error
-            free(transferInfo->filePath);
-            free(transferInfo->song_name);
-            free(transferInfo);
-            return -1;
-        }
-        transferInfo->socket = socket;
-                transferInfo->id = idNumRandom;
-
-       
-        //strncpy(transferInfo->filePath, path_found, PATH_MAX);
+        transferInfo->socket = *newsock;
+        strncpy(transferInfo->filePath, path_found, PATH_MAX);
+        transferInfo->id = idNumRandom;
         pthread_t fileTransferThread;
         if (pthread_create(&fileTransferThread, NULL, sendFileData, transferInfo) != 0) {
             perror("Error creating file transfer thread");
             // Manejar error
-            free(transferInfo->filePath);
-            free(transferInfo->song_name);
             free(transferInfo);
             return -1;
         }
-        free(song_name);
-        
+        free(data_info); 
+        free(md5sum);    
     } 
-    return 0;
 }
 
 int handleBowmanConnection(int *newsock, int errorSocketOrNot, Frame *incoming_frame) {
@@ -243,7 +217,7 @@ int handleBowmanConnection(int *newsock, int errorSocketOrNot, Frame *incoming_f
     }
     else if (strcmp(incoming_frame->header, "DOWNLOAD_SONG") == 0) //TODO    A total of 2 songs will be sent. AQUEST PRINTF,SA DE CONTAR EL NUMERO DE CANSONS O ALGO AIXI K SENVIEN
     {
-        return downloadSong(*newsock,incoming_frame);
+        downloadSong(&incoming_frame);
     }
     
     else if (strcmp(incoming_frame->header, "CHECK_OK") == 0 || strcmp(incoming_frame->header, "CHECK_KO]") == 0)// NNNNNNNNNNNNNNNNNNNNNNEEEEEEEEEEEEEEEEEEEEEEEEWWWWWWWWWWWWWWWWWWWWWWW

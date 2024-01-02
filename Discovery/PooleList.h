@@ -9,7 +9,7 @@
 #define INET_ADDRSTRLEN 16
 
 typedef struct PooleInfo {
-    char userName[50];
+    char *userName;
     char ip[INET_ADDRSTRLEN];
     int port;
     int contador_bowmans;

@@ -1,13 +1,10 @@
 #include "dirfunctions.h"
-#include <dirent.h>
-#include <string.h>
-#include <stdio.h>
-#include <sys/stat.h>
+
 
 int findSongInDirectory(const char *directory, const char *song_name, char *path_found) {
     DIR *dir;
     struct dirent *entry;
-    char path[1024];
+    char *path = NULL;
     int found = 0;
 
     dir = opendir(directory);
@@ -20,8 +17,15 @@ int findSongInDirectory(const char *directory, const char *song_name, char *path
         if (entry->d_name[0] == '.') {
             continue;
         }
-        snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name);
+        size_t path_length = strlen(directory) + strlen(entry->d_name) + 2;  // +1 for '/' and +1 for null terminator   
+        path = (char *)malloc(path_length);
+        if (path == NULL) {
+            perror("Error allocating memory for path");
+            closedir(dir);
+            //return 0;
+        }
 
+        snprintf(path, path_length, "%s/%s", directory, entry->d_name);
         struct stat path_stat;
         stat(path, &path_stat);
         if (S_ISDIR(path_stat.st_mode)) {
@@ -51,7 +55,7 @@ int findSongInDirectory(const char *directory, const char *song_name, char *path
 void listSongsInDirectory(char *directory, char *result, int includeDirs) {
     DIR *directori;
     struct dirent *entrada;
-    char path[1024];
+    char *path = NULL;
 
     directori = opendir(directory);
     if (directori != NULL) {
@@ -59,8 +63,18 @@ void listSongsInDirectory(char *directory, char *result, int includeDirs) {
             if (entrada->d_name[0] == '.') {
                 continue;
             }
-            snprintf(path, sizeof(path), "%s/%s", directory, entrada->d_name);
-            
+            size_t path_length = strlen(directory) + strlen(entrada->d_name) + 2;  // +1 for '/' and +1 for null terminator
+
+            path = (char *)malloc(path_length);
+            if (path == NULL) {
+                perror("Error allocating memory for path");
+                closedir(directori);
+                //return 0;
+            }
+        
+
+            snprintf(path, path_length, "%s/%s", directory, entrada->d_name);
+
             struct stat path_stat;
             stat(path, &path_stat);
             if (S_ISDIR(path_stat.st_mode)) {

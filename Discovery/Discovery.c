@@ -36,15 +36,21 @@ void enviarAcknowledge(int newsock,int errorSocketOrNot,int bowmanOrPoole,PooleL
 
 void process_frame(Frame *frame, PooleList *list) {
     if (frame->type == 0x01 && strcmp(frame->header, "NEW_POOLE") == 0) {
-        char userName[50], ip[INET_ADDRSTRLEN];
+        char *userName = NULL;
+        char ip[INET_ADDRSTRLEN];
         int port;
-        if (sscanf(frame->data, "%49[^&]&%15[^&]&%d", userName, ip, &port) == 3) {
+        if (sscanf(frame->data, "%m[^&]&%15[^&]&%d", &userName, ip, &port) == 3) {
             PooleInfo pooleInfo;
-            strcpy(pooleInfo.userName, userName);
-            strcpy(pooleInfo.ip, ip);
-            pooleInfo.port = port;
-            pooleInfo.contador_bowmans= 0;
-            add_poole(list, pooleInfo);
+            if (userName != NULL) {
+                pooleInfo.userName = strdup(userName);
+                strcpy(pooleInfo.ip, ip);
+                pooleInfo.port = port;
+                pooleInfo.contador_bowmans= 0;
+                add_poole(list, pooleInfo);
+                //free(pooleInfo.userName);
+            }
+
+            free(userName);
         }
     }
 }

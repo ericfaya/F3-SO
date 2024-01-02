@@ -54,9 +54,12 @@ typedef struct {
 
 typedef struct {
     int socket;
-    char filePath[PATH_MAX];
+    char *filePath;   // Flexible array member
+    char *song_name;  // Flexible array member
     int id;
 } FileTransferInfo;
+
+
 
 typedef struct ClientNode {
     int sockfd;

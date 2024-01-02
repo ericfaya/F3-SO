@@ -3,7 +3,7 @@
 
 Bowman* bowmaneta;
 int numUsuaris;
-char *tokens[MAX_TOKENS];
+char *tokens[MAX_TOKENS]; //TODO FER LO MATEIX PERO SENSE STATICA
 int sockfd_poole;
 int isConnectedToPoole = 0;
 int mq_id_queue;
@@ -32,12 +32,12 @@ void printBarraProgres(FileInfo *fileInfo) {
     } */
 }
 
-void printAllSongs() {
+void printAllSongs() { //CLEAR FALTA QUE ENCARA QUE NO ESTIGUI DESCARREGADA AL 100 ES
     SongNode* current = head;
 
     while (current != NULL) {
     double percentComplete = (double)current->fileInfo->totalBytesReceived / current->fileInfo->fileSize * 100.0;
-        printf("Song: %s ,downloading:  %f / 100 \n", current->fileInfo->songPath,percentComplete);
+        printf("Song: %s ,downloaded:  %f / 100 \n", current->fileInfo->songPath,percentComplete);
         // int progressChars = (int)(percentComplete / 2); // Calcular el número de caracteres '=' en la barra de progreso
         
         /*printf("%3.0f%% |", percentComplete);//printf("%s\n", current->fileInfo->fileName);
@@ -427,7 +427,7 @@ int connectToPoole(char *tokens[]) {
 
 int connectBowman(char *tokens[MAX_TOKENS]){ 
     connectDiscovery(tokens);
-    printF(" connected to HAL 9000 system, welcome music lover!\n");
+   
     return connectToPoole(tokens);    
 }
 
@@ -516,8 +516,10 @@ void logout(int haTancatSocketPoole){
 
     if(errorSocketOrNot!=-1 ){
         if(strcmp(frameAcknoledge.header,"[CON_OK]")){
-            if(haTancatSocketPoole==0)
+            if(haTancatSocketPoole==0){
                 close(sockfd_poole);//Crec que no es tindra que fer perque sino es tanca la comunicacio
+            }
+
             printF("Thanks for using HAL 9000, see you soon, music lover!\n");
             exit(0);
         }
@@ -540,6 +542,8 @@ int controleCommands(char *whichCommand, int *connectedOrNot) {
             whichCommand2=strtok(NULL, &delimiter);//Si li fiquem NULL començara la segona busqueda per on es va quedar cuan es va cridar per primer cop strtok
             if(whichCommand2 == NULL){
                 *connectedOrNot=connectBowman(tokens);
+                if(*connectedOrNot)
+                 printF(" connected to HAL 9000 system, welcome music lover!\n");
             }
             else{
                 printF("Unknown command\n");
@@ -650,7 +654,7 @@ int main(int argc, char *argv[]) {
                 perror("Error al crear el hilo de escucha");
                 exit(EXIT_FAILURE);
 
-                close(sockfd_poole);
+                //close(sockfd_poole);
             }
         }
 

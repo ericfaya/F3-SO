@@ -45,6 +45,8 @@ typedef struct {
     ssize_t totalBytesReceived;
     int id_queue;
     int id_bustia;
+    int id_bustiaToCheck;
+    //int incrementBustiaToCheckDownload=id_queue+1000;
 } FileInfo;
 
 typedef struct {
@@ -66,7 +68,7 @@ typedef struct SongNode {
 void freeMemory();
 void printInfo(Bowman* bowmaneta);
 void connectDiscovery(char *tokens[]);
-void download(int *connectedOrNot, char *commandInput) ;
+void download(char *commandInput) ;
 void listSongs();
 void listPlaylists();
 void checkDownload(int *connectedOrNot);

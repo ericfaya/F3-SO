@@ -14,43 +14,44 @@ pthread_t downloadThread;
 
 pthread_mutex_t songentrada_sockets_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex per larray
 SongNode* head = NULL;
+int incrementBustiaToCheckDownload = 0;
 
+void printBarraProgres(FileInfo *fileInfo) {
+    double percentComplete = (double)fileInfo->totalBytesReceived / fileInfo->fileSize * 100.0;
 
+   // int progressChars = (int)(percentComplete / 2);// Calcular el número de caracteres '=' en la barra de progreso
+   
+    printf("Song: %s ,downloading:  %f / 100 \n", fileInfo->songPath,percentComplete);
 
-void printAllSongs(int checkOrClear) {
-    pthread_mutex_lock(&songentrada_sockets_mutex);
+   /* for (int i = 0; i < progressChars; ++i) {// Imprimir '=' para la barra de progreso completada
+        printf("=");
+    }
 
+    for (int i = progressChars; i < 50; ++i) {// Imprimir espacios en blanco para la parte restante de la barra de progreso
+         printf(" ");
+    } */
+}
+
+void printAllSongs() {
     SongNode* current = head;
 
     while (current != NULL) {
-        printf("Song: %s\n", current->fileInfo->songPath);
+    double percentComplete = (double)current->fileInfo->totalBytesReceived / current->fileInfo->fileSize * 100.0;
+        printf("Song: %s ,downloading:  %f / 100 \n", current->fileInfo->songPath,percentComplete);
+        // int progressChars = (int)(percentComplete / 2); // Calcular el número de caracteres '=' en la barra de progreso
+        
+        /*printf("%3.0f%% |", percentComplete);//printf("%s\n", current->fileInfo->fileName);
 
-        if(checkOrClear==0){//CHECK
-            double percentComplete = (double)current->fileInfo->totalBytesReceived / current->fileInfo->fileSize * 100.0;
-
-            // Calcular el número de caracteres '=' en la barra de progreso
-            int progressChars = (int)(percentComplete / 2);
-
-            printf("%s\n", current->fileInfo->fileName);
-            printf("%3.0f%% |", percentComplete);
-
-            // Imprimir '=' para la barra de progreso completada
-            for (int i = 0; i < progressChars; ++i) {
-                printf("=");
-            }
-
-            // Imprimir espacios en blanco para la parte restante de la barra de progreso
-            for (int i = progressChars; i < 50; ++i) {
-                printf(" ");
-            }
+        for (int i = 0; i < progressChars; ++i) {            // Imprimir '=' para la barra de progreso completada
+            printf("=");
         }
         
-        // Add more information about the song if available
-
+        for (int i = progressChars; i < 50; ++i) {// Imprimir espacios en blanco para la parte restante de la barra de progreso
+            printf(" ");
+        }*/ 
         current = current->next;
     }
 
-    pthread_mutex_unlock(&songentrada_sockets_mutex);
 }
 
 void addSong( FileInfo *fileInfo) {
@@ -64,7 +65,7 @@ void addSong( FileInfo *fileInfo) {
     //newNode->fileNameDownloaded = strdup(fileName);  // Allocate memory for the string
     newNode->next = NULL;
 
-    pthread_mutex_lock(&songentrada_sockets_mutex);
+    //pthread_mutex_lock(&songentrada_sockets_mutex);
 
     if (head == NULL) {
         head = newNode;
@@ -76,11 +77,11 @@ void addSong( FileInfo *fileInfo) {
         current->next = newNode;
     }
 
-    pthread_mutex_unlock(&songentrada_sockets_mutex);
+    //pthread_mutex_unlock(&songentrada_sockets_mutex);
 }
 
 void removeAllSongs() {
-    pthread_mutex_lock(&songentrada_sockets_mutex);
+    //pthread_mutex_lock(&songentrada_sockets_mutex);
 
     SongNode* current = head;
     SongNode* next;
@@ -94,7 +95,7 @@ void removeAllSongs() {
 
     head = NULL;
 
-    pthread_mutex_unlock(&songentrada_sockets_mutex);
+    //pthread_mutex_unlock(&songentrada_sockets_mutex);
 }
 
 int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
@@ -181,10 +182,12 @@ void connectDiscovery(char *tokens[]){
     write (STDOUT_FILENO, buffer, strlen(buffer));
     free(buffer);
 }
+
 void processSongsResponse(Frame *frame) { //TODO es podria ficar al frame.c
     printF("songs:\n");
     print_frame2(frame);
 }
+
 void processPlaylistsResponse(Frame *frame) {//TODO es podria ficar al frame.c
     printF("playlists:\n");
     print_frame2(frame);
@@ -216,48 +219,43 @@ int receiveFileData( FileInfo *downloadInfo) {
     MessageQueue msg;
 
     while (downloadInfo->totalBytesReceived < downloadInfo->fileSize && tocaTancar == 1) {        //printf("\n\nRebo per la cua %d + id bustia : %d ",downloadInfo->id_queue,downloadInfo->id_bustia);
-        if (msgrcv(downloadInfo->id_queue, &msg, sizeof(MessageQueue)- sizeof(long) , downloadInfo->id_bustia, 0) != -1) {// if (msgrcv(downloadInfo->id_queue, &msg, sizeof(msg) - sizeof(long), downloadInfo->id_bustia, 0) != -1) {
-        //  printf("Rebo per la cua %d + id bustia : %ld ",downloadInfo->id_queue,msg.mtype);
-        // printf("Receiving data: %s\n\n", msg.frame.data);
-        if (strcmp(msg.frame.header, "FILE_DATA") == 0) {
+        if (msgrcv(downloadInfo->id_queue, &msg, sizeof(MessageQueue)- sizeof(long) , 1000+downloadInfo->id_bustiaToCheck, IPC_NOWAIT) != -1) {
+            printf("ID Bustia: %d\n", 1000+downloadInfo->id_bustiaToCheck);  
+
+            printBarraProgres(downloadInfo);
+        }
+        else if (msgrcv(downloadInfo->id_queue, &msg, sizeof(MessageQueue)- sizeof(long) , downloadInfo->id_bustia, 0) != -1) {// if (msgrcv(downloadInfo->id_queue, &msg, sizeof(msg) - sizeof(long), downloadInfo->id_bustia, 0) != -1) {
+
             if(writeBinaryFile(msg.frame,downloadInfo)==-1)
                 return -1; //Error al escriure al file binary
             //printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, downloadInfo->totalBytesReceived);
-            }
-            else{
-                break;//S'ha tancat el socket o algo aixi
-            }
         }
-        else if (strcmp(msg.frame.header, "JAMBO") == 0) {
-            write(1,"JAMBO",sizeof("JAMBO"));
-            addSong(downloadInfo);
+        else{
+            break;//S'ha tancat el socket o algo aixi
         }
+
         //printf("Total data received: %zd bytes\n", downloadInfo->totalBytesReceived);
     }
+    
     return (downloadInfo->totalBytesReceived == downloadInfo->fileSize) ? 0 : -1;
 }
-
 void *downloadSongs(void *arg) {
     FileInfo *downloadInfo = (FileInfo *)arg;
    
-    printf("ID Queue: %d\n", downloadInfo->id_queue);
-    printf("ID Bustia: %d\n", downloadInfo->id_bustia);
-
-
-     if (receiveFileData( downloadInfo) == 0){ // You can also print frame information if needed
+    if (receiveFileData( downloadInfo) == 0){ // You can also print frame information if needed
 
         char *calculated_md5 = calculateMD5(downloadInfo->songPath);
             //printf("MD5 values match. Expected: %s, \nCalculated: %s\n and path %s", downloadInfo->md5sum, calculated_md5,downloadInfo->songPath);
         if (calculated_md5 != NULL && strcmp(downloadInfo->md5sum, calculated_md5) == 0) {
             write(1,"MD5 verification successful\n",sizeof("MD5 verification successful\n"));
-            //addSong(downloadInfo);
+            addSong(downloadInfo);
+
             close(downloadInfo->fd_song);
         } else {
             write(1,"MD5 verification failed\n",sizeof("MD5 verification failed\n"));
-            //addSong(downloadInfo); //TODO********************************Cuan funcioni md5sum haurem de treure aquesta linea
+            addSong(downloadInfo);
 
             close(downloadInfo->fd_song);
-
         }
         free(calculated_md5);
     }
@@ -311,68 +309,61 @@ void *socketListener(void *arg) {
         printF("Error: ThreadArgs is NULL\n");
         return NULL;  // or handle the error appropriately
     }
-   
+
     int mq_id = args->mq_id;
-    int checkOrClear= args->newCommand;
+    int checkOrClear = args->newCommand;
     int jaHoHaFet=0;
+
     FileInfo *fileInfo = malloc(sizeof(FileInfo));
     fileInfo->id_queue = mq_id;
-   // printf("Envio per la cua %d + id bustia :\n\n", mq_id );
-   int id_bustia2;
     while (tocaTancar==1) {
         Frame frame;
-
+       
         if(checkOrClear == 2 && jaHoHaFet == 0){ //check
-            write(1,"cheeck\n",sizeof("cheeck\n"));
-            printAllSongs(1);
+            char frame_buffer[FRAME_SIZE] = {0};
+            fillFrame(frame_buffer,0x45,"JAMBO","HOLA JAMBO");
+            printaAcknowledge(frame_buffer,&frame);
             
-            //char frame_buffer[FRAME_SIZE] = {0};
-           // fillFrame(frame_buffer,0x45,"JAMBO","HOLA JAMBO");
-          //  printaAcknowledge(frame_buffer,&frame);
-           // print_frame2(&frame);
-
-            //printf("ID Queue: %d\n", mq_id);
-            //printf("ID Bustia: %d\n", fileInfo->id_bustia);        
-
-            messageQueue(&frame,mq_id,fileInfo->id_bustia);            //implementem cua de missatges;
-
+            for(int i = 1;i <= incrementBustiaToCheckDownload;i++){ //implementem cua de missatges pel check;
+                messageQueue(&frame,mq_id,1000+i);      
+            }    
+            printAllSongs();
+ 
             jaHoHaFet=1;
         }
+
         if(checkOrClear == 3 && jaHoHaFet == 0){//clear
+            printAllSongs();
+            removeAllSongs();
+            jaHoHaFet = 1;
+        }
+      
+        ssize_t  bytes_read=receive_frame(sockfd_poole, &frame) ;//receive_frame(sockfd_poole, &frame) < 0
+        if (bytes_read == -1 && tocaTancar==1) {
+            printF("Error poole has been disconnected\n");
+            logout(1);
+            break;
+        } 
         
-            write(1,"Clear\n",sizeof("Clear\n"));   
-            printAllSongs(0);
-            jaHoHaFet=1;
+        if (strcmp(frame.header, "SONGS_RESPONSE") == 0) {
+            processSongsResponse(&frame);
+        } else if (strcmp(frame.header, "PLAYLISTS_RESPONSE") == 0) {
+            processPlaylistsResponse(&frame);
+        } else if (strcmp(frame.header, "NEW_FILE") == 0) {
+            incrementBustiaToCheckDownload++;
+            fileInfo->id_bustiaToCheck=incrementBustiaToCheckDownload;
+            print_frame2(&frame);
+            int id_bustia2 = extractIdFromFrame2(&frame);
+            fileInfo->id_bustia=id_bustia2;
+            createBinaryFile(&frame, fileInfo); 
+
+            processFileResponse(fileInfo); 
+       }
+        else if (strcmp(frame.header, "FILE_DATA") == 0) {
+            int id_bustia = extractIdFromFrame(&frame);
+            messageQueue(&frame,mq_id,id_bustia);            //implementem cua de missatges per les cansons;
         }
-        else{
-
-            ssize_t  bytes_read=receive_frame(sockfd_poole, &frame) ;//receive_frame(sockfd_poole, &frame) < 0
-            if (bytes_read == -1 && tocaTancar==1) {
-                printF("Error poole has been disconnected\n");
-                logout(1);
-                break;
-            } 
-            
-            if (strcmp(frame.header, "SONGS_RESPONSE") == 0) {
-                processSongsResponse(&frame);
-            } else if (strcmp(frame.header, "PLAYLISTS_RESPONSE") == 0) {
-                processPlaylistsResponse(&frame);
-            } else if (strcmp(frame.header, "NEW_FILE") == 0) {
-                print_frame2(&frame);
-                 id_bustia2 = extractIdFromFrame2(&frame);
-                printf("id bustia fora NWE FILE : %d\n ",id_bustia2);
-                fileInfo->id_bustia=id_bustia2;
-                createBinaryFile(&frame, fileInfo); 
-
-                processFileResponse(fileInfo); 
-            }
-            else if (strcmp(frame.header, "FILE_DATA") == 0) {
-
-                int id_bustia = extractIdFromFrame(&frame);
-
-                messageQueue(&frame,mq_id,id_bustia);            //implementem cua de missatges;
-            }
-        }
+        
         free(frame.header);
         free(frame.data);
     }
@@ -384,6 +375,7 @@ void *socketListener(void *arg) {
   
     return NULL;
 }
+
 int connectToPoole(char *tokens[]) {
     
     if (!tokens[1] || !tokens[2]) {
@@ -432,37 +424,37 @@ int connectToPoole(char *tokens[]) {
         return 0;
     }
 }
+
 int connectBowman(char *tokens[MAX_TOKENS]){ 
     connectDiscovery(tokens);
     printF(" connected to HAL 9000 system, welcome music lover!\n");
     return connectToPoole(tokens);    
 }
+
 void listSongs() {
     char frame_buffer[FRAME_SIZE] = {0};
     fillFrame(frame_buffer,0x02,"LIST_SONGS"," ");
 
     send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
 }
+
 void listPlaylists() {
     char frame_buffer[FRAME_SIZE] = {0};
     fillFrame(frame_buffer,0x06,"LIST_PLAYLISTS"," ");
-
     send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
 }
-void download(int *connectedOrNot, char *commandInput) {
-    if (*connectedOrNot == 1) {
+
+void download( char *commandInput) {
         
-        char *song_name = commandInput + strlen("DOWNLOAD ");
-        if (strlen(song_name) == 0) {
-            printF("No song name provided\n");
-            return;
-        }
-        char frame_buffer[FRAME_SIZE] = {0};
-        fillFrame(frame_buffer, 0x03, "DOWNLOAD_SONG", song_name);
-        send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);
-    } else {
-        printF("Not connected to HAL 9000\n");
+    char *song_name = commandInput + strlen("DOWNLOAD ");
+    if (strlen(song_name) == 0) {
+        printF("No song name provided\n");
+        return;
     }
+    char frame_buffer[FRAME_SIZE] = {0};
+    fillFrame(frame_buffer, 0x03, "DOWNLOAD_SONG", song_name);
+    send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);
+    
 }
 void logoutDiscovery(){
     char frame_buffer[FRAME_SIZE] = {0};
@@ -514,7 +506,6 @@ void logout(int haTancatSocketPoole){
 
     char frame_buffer[FRAME_SIZE] = {0};
     fillFrame(frame_buffer,0x02,"EXIT",bowmaneta[0].fullName);
-    
     send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
 
     char info[256];
@@ -555,56 +546,53 @@ int controleCommands(char *whichCommand, int *connectedOrNot) {
             } 
             flag=1;
         }
-     if(*connectedOrNot){
+        if(*connectedOrNot){
 
-        if(strcasecmp("LOGOUT",whichCommand1) == 0){//TODO F2 PRINTAR MILLOR
-            logout(0);
-            return 0;
-        }
-
-        if(strcasecmp("LIST",whichCommand1) == 0){//TODO F2 PRINTAR MILLOR
-            whichCommand2=strtok(NULL, &delimiter);//Si li fiquem NULL començara la segona busqueda per on es va quedar cuan es va cridar per primer cop strtok
-            if(whichCommand2 != NULL){
-                if(strcasecmp("SONGS",whichCommand2) == 0){
-                    listSongs(); 
-                    flag=1;
-                }
-                else if(strcasecmp("PLAYLISTS",whichCommand2) == 0){
-                    listPlaylists();
-                    flag=1;
+            if(strcasecmp("LOGOUT",whichCommand1) == 0){//TODO F2 PRINTAR MILLOR
+                logout(0);
+                return 0;
+            }
+            if(strcasecmp("LIST",whichCommand1) == 0){//TODO F2 PRINTAR MILLOR
+                whichCommand2=strtok(NULL, &delimiter);//Si li fiquem NULL començara la segona busqueda per on es va quedar cuan es va cridar per primer cop strtok
+                if(whichCommand2 != NULL){
+                    if(strcasecmp("SONGS",whichCommand2) == 0){
+                        listSongs(); 
+                        flag=1;
+                    }
+                    else if(strcasecmp("PLAYLISTS",whichCommand2) == 0){
+                        listPlaylists();
+                        flag=1;
+                    }
                 }
             }
-        }
-
-        if(strcasecmp(whichCommand1,"DOWNLOAD") == 0){ //TODO F3
-            download(connectedOrNot, whichCommand);
-            flag=1; 
-        }
-
-        if(strcasecmp("CHECK",whichCommand1) == 0){//TODO F3
-            whichCommand2=strtok(NULL, &delimiter);//Si li fiquem NULL començara la segona busqueda per on es va quedar cuan es va cridar per primer cop strtok
-            if(whichCommand2 != NULL){
-                if(strcasecmp("DOWNLOADS",whichCommand2) == 0){
-                    return 2;
+            if(strcasecmp(whichCommand1,"DOWNLOAD") == 0){ //TODO F3
+                download( whichCommand);
+                flag=1; 
+            }
+            if(strcasecmp("CHECK",whichCommand1) == 0){//TODO F3
+                whichCommand2=strtok(NULL, &delimiter);//Si li fiquem NULL començara la segona busqueda per on es va quedar cuan es va cridar per primer cop strtok
+                if(whichCommand2 != NULL){
+                    if(strcasecmp("DOWNLOADS",whichCommand2) == 0){
+                        return 2;
+                    }
                 }
             }
-        }
-        if(strcasecmp("CLEAR",whichCommand1) == 0){//TODO F3
-            whichCommand2=strtok(NULL, &delimiter);//Si li fiquem NULL començara la segona busqueda per on es va quedar cuan es va cridar per primer cop strtok
-            if(whichCommand2 != NULL){
-                if(strcasecmp("DOWNLOADS",whichCommand2) == 0){
-                    return 3;
+            if(strcasecmp("CLEAR",whichCommand1) == 0){//TODO F3
+                whichCommand2=strtok(NULL, &delimiter);//Si li fiquem NULL començara la segona busqueda per on es va quedar cuan es va cridar per primer cop strtok
+                if(whichCommand2 != NULL){
+                    if(strcasecmp("DOWNLOADS",whichCommand2) == 0){
+                        return 3;
+                    }
                 }
             }
+            
+            else if(flag==0){
+                printF("ERROR: Please input a valid command.\n");
+            }
+        }
+        else{
+            printF("Cannot make any command, you are not connected to HAL 9000\n");
         } 
-        else if(flag==0){
-            printF("ERROR: Please input a valid command.\n");
-        }
-    }
-    else{
-        printF("Cannot make any command, you are not connected to HAL 9000\n");
-    } 
-       
     }
     return 1;
 }
@@ -617,7 +605,6 @@ int main(int argc, char *argv[]) {
         printF("ERROR: Incorrect number of arguments\n");
         return -1;
     }
-
     bowmaneta = readTextFile(argv[1], &numUsuaris);
     if (bowmaneta == NULL) {   
         return -2;
@@ -625,14 +612,12 @@ int main(int argc, char *argv[]) {
     char *command;
     int connectedOrNot = 0;
     key_t key = IPC_PRIVATE; // Use IPC_PRIVATE to generate a unique key
-
     if (key == -1) {
         perror("Error generating key");
         fprintf(stderr, "Additional information: Something went wrong with ftok.\n");
         //exit(EXIT_FAILURE);
     }
-
-    mq_id_queue=msgget(key, IPC_CREAT | 0666);
+        mq_id_queue=msgget(key, IPC_CREAT | 0666);
     if (mq_id_queue == -1) {
         perror("Error al obtener/crear la cola de mensajes");
         printF("Error al crear la cola de mensajes\n");
@@ -656,10 +641,10 @@ int main(int argc, char *argv[]) {
                 perror("Error allocating memory for threadArgs");
                 exit(EXIT_FAILURE);
             }
-            threadArgs->newCommand = newCommand;
 
             threadArgs->mq_id = mq_id_queue;
             //pthread_t listenerThread;
+            threadArgs->newCommand = newCommand;
 
             if (pthread_create(&listenerThread, NULL, socketListener, threadArgs) != 0) {
                 perror("Error al crear el hilo de escucha");

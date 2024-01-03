@@ -263,20 +263,32 @@ void *downloadSongs(void *arg) {
 
     return NULL;
 }
-void createBinaryFile(Frame *frame,FileInfo *fileInfo) {
+void createBinaryFile(Frame *frame, FileInfo *fileInfo) {
     if (fillDownloadInfo(frame, fileInfo) != 0) {  
         perror("Error processing file info.\n");
         return;
     }
-    fileInfo->songPath = malloc(strlen(fileInfo->fileName) + strlen(".mp3") + 1);
-    sprintf(fileInfo->songPath, "%s.mp3", fileInfo->fileName);   // sprintf(fileInfo->songPath, "%s.mp3", fileInfo->fileName);
+
+    // base clients, carpeta creda amanualment
+    const char *baseDir = "Clients"; 
+    int checkDir = ensureUserDirectoryExists(baseDir, bowmaneta->fullName);
+    if (checkDir < 0) {
+        perror("Error asegurando la existencia del directorio del usuario");
+        printf ("El error es: %d", checkDir );
+    }
+
+    //construim ruta del arxiu
+    char *songPath;
+    asprintf(&songPath, "%s/%s/%s.mp3", baseDir, bowmaneta->fullName, fileInfo->fileName);
+
+    fileInfo->songPath = songPath;
     fileInfo->fd_song = open(fileInfo->songPath, O_WRONLY | O_CREAT | O_TRUNC, 0666);
     if (fileInfo->fd_song == -1) {
         perror("Error opening file for download");
         free(fileInfo->fileName);
         free(fileInfo->md5sum);
         free(fileInfo->songPath);
-    } 
+    }
 }
 
 void processFileResponse(FileInfo *fileInfo) {

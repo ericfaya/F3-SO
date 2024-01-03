@@ -135,3 +135,37 @@ void listPlayLists(char *directory, char *result) {
     }
 }
 
+
+int ensureUserDirectoryExists(const char *baseDir, const char *userName) {
+    size_t fullPathLength = strlen(baseDir) + strlen(userName) + 2; // +1 for '/' and +1 for '\0'
+    char *fullPath = (char *)malloc(fullPathLength);
+
+    if (fullPath == NULL) {
+        perror("Error al asignar memoria para fullPath");
+        return -3; 
+    }
+
+    //ruta del directori
+    snprintf(fullPath, fullPathLength, "%s/%s", baseDir, userName);
+
+    struct stat statbuf;
+    if (stat(fullPath, &statbuf) == -1) { //comprovem si existeix
+        // si no existeix creem un amb mkdir
+        if (mkdir(fullPath, 0777) == -1) { 
+            perror("Error al crear directorio de usuario");
+            free(fullPath);
+            return -1; 
+        }
+        free(fullPath);
+        return 1; //directori creat
+    }
+
+    if (!S_ISDIR(statbuf.st_mode)) {
+        fprintf(stderr, "Existe un archivo que no es un directorio con el mismo nombre: %s\n", fullPath);
+        free(fullPath);
+        return -2; // Retorna -2 si hi ha el mateix nom a un arxiu que no sigui directori, no hauria de passar mai
+    }
+
+    free(fullPath);
+    return 0; // directori ja existeix, es guardara sense crear un d nou
+}

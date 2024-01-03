@@ -24,6 +24,7 @@
 #include "frame.h"
 #include "md5functions.h"
 #include "semaphore_v2.h"
+#include "dirfunctions.h"
 
 #define printF(x) write(1, x, strlen(x))
 

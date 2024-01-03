@@ -4,11 +4,12 @@
 
 #include <dirent.h>
 #include <stdlib.h>
-#include <string.h>
 #include <stdio.h>
 #include <sys/stat.h>
+#include <string.h>
 
-int findSongInDirectory(const char *directory, const char *song_name, char *path_found);
+
+char* findSongInDirectory(const char *directory, const char *song_name) ;
 void listSongsInDirectory(char *directory, char *result, int includeDirs);
 void listAllSongs(char *directory, char *result);
 void listPlayLists(char *directory, char *result);

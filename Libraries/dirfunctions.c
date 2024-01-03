@@ -1,19 +1,27 @@
 #include "dirfunctions.h"
 
+char* my_strdup(const char *s) {
+    size_t len = strlen(s) + 1;
+    char *dup = malloc(len);
+    if (dup != NULL) {
+        strcpy(dup, s);
+    }
+    return dup;
+}
 
-int findSongInDirectory(const char *directory, const char *song_name, char *path_found) {
+char* findSongInDirectory(const char *directory, const char *song_name) {
     DIR *dir;
     struct dirent *entry;
     char *path = NULL;
-    int found = 0;
+    char *found_path = NULL;
 
     dir = opendir(directory);
     if (dir == NULL) {
         perror("No se pudo abrir el directorio");
-        return 0;
+        return NULL;
     }
 
-    while (!found && (entry = readdir(dir)) != NULL) {
+    while ((entry = readdir(dir)) != NULL) {
         if (entry->d_name[0] == '.') {
             continue;
         }
@@ -29,7 +37,10 @@ int findSongInDirectory(const char *directory, const char *song_name, char *path
         struct stat path_stat;
         stat(path, &path_stat);
         if (S_ISDIR(path_stat.st_mode)) {
-            found = findSongInDirectory(path, song_name, path_found);
+            found_path = findSongInDirectory(path, song_name);
+            if (found_path != NULL) {
+                break;
+            }        
         } else {
             
             char *dot = strstr(entry->d_name, ".mp3");
@@ -40,14 +51,16 @@ int findSongInDirectory(const char *directory, const char *song_name, char *path
 
                 
                 if (strcmp(nomSenseExt, song_name) == 0 || strcmp(entry->d_name, song_name) == 0) {
-                    strcpy(path_found, path); 
-                    found = 1;
+                    found_path = my_strdup(path);//found_path = strdup(path);  //strcpy(path_found, path); 
+                                        printf("Found path: %s\n", found_path);
+
+                    //found = 1;
                 }
             }
         }
     }
     closedir(dir);
-    return found;
+    return found_path;
 }
 
 

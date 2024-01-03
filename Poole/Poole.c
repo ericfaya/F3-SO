@@ -74,8 +74,9 @@ void sendPlayListResponse(int socket) {
 }
 void *sendFileData(void *arg) {
     FileTransferInfo *info = (FileTransferInfo *)arg;
- 
+
     struct stat st;
+
     if (stat(info->filePath, &st) == -1) {
         perror("Error al obtener información del archivo");
         return NULL;//return -1;
@@ -160,43 +161,51 @@ void enviarAcknowledge(int newsock,int errorSocketOrNot) {
     send(newsock, frame_buffer, 256, 0);//Bowman send poole
 }
 
+FileTransferInfo *initializeFileTransferInfo(const char *filePath, const char *songName, int socket, int id) {
+    FileTransferInfo *info = malloc(sizeof(FileTransferInfo));
+    if (info == NULL) {
+        perror("Error allocating memory for file transfer info");
+        return NULL;
+    }
+
+    info->filePath = strdup(filePath);
+    info->song_name = strdup(songName);
+    info->socket = socket;
+    info->id = id;
+
+    if (info->filePath == NULL || info->song_name == NULL) {
+        perror("Error allocating memory for filePath or song_name");
+        free(info->filePath);
+        free(info->song_name);
+        free(info);
+        return NULL;
+    }
+
+    return info;
+}
+
 int downloadSong(int socket,Frame *incoming_frame) {
-    char path_found[PATH_MAX];
+    char *path_found=NULL;//char path_found[PATH_MAX];
     char *song_name = incoming_frame->data; 
     char *buffer;
     asprintf(&buffer,"New request – %s wants to download %s\n Sending %s to %s\n\n", incoming_frame->data,song_name,song_name,incoming_frame->data);  
     write(STDOUT_FILENO, buffer, strlen(buffer));   
     free(buffer);
-    int found = findSongInDirectory("Files/floyd", song_name, path_found);
-    if (found) {
 
+    path_found = findSongInDirectory("Files/floyd", song_name);
 
+    if (path_found != NULL) {
         int idNumRandom = 0 + rand() % 999;
-        
-        FileTransferInfo *transferInfo = malloc(sizeof(FileTransferInfo));
+
+        FileTransferInfo *transferInfo = initializeFileTransferInfo(path_found, song_name, socket, idNumRandom);
         if (transferInfo == NULL) {
-            perror("Error allocating memory for file transfer info");
-            // Manejar error
-            return -1;
-        }
-
-        transferInfo->filePath = strdup(path_found);
-        transferInfo->song_name = strdup(song_name);
-
-        if (transferInfo->filePath == NULL || transferInfo->song_name == NULL) {
-            perror("Error allocating memory for filePath or song_name");
             // Handle error
-            free(transferInfo->filePath);
-            free(transferInfo->song_name);
-            free(transferInfo);
+            free(path_found);
             return -1;
         }
-        transferInfo->socket = socket;
-                transferInfo->id = idNumRandom;
 
-       
-        //strncpy(transferInfo->filePath, path_found, PATH_MAX);
         pthread_t fileTransferThread;
+
         if (pthread_create(&fileTransferThread, NULL, sendFileData, transferInfo) != 0) {
             perror("Error creating file transfer thread");
             // Manejar error
@@ -205,6 +214,7 @@ int downloadSong(int socket,Frame *incoming_frame) {
             free(transferInfo);
             return -1;
         }
+        free(path_found);
         free(song_name);
         
     } 

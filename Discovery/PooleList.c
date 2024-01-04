@@ -14,12 +14,16 @@ void add_poole(PooleList *list, PooleInfo pooleInfo) {
     newNode->info = pooleInfo;
     newNode->next = list->head;
     list->head = newNode;
+    //free(pooleInfo.userName);
+
+    //free(newNode);
 }
 
 void free_poole_list(PooleList *list) {
     PooleNode *current = list->head;
     while (current != NULL) {
         PooleNode *next = current->next;
+        free(current->info.userName);
         free(current);
         current = next;
     }

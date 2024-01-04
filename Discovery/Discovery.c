@@ -2,9 +2,17 @@
 #include "config.h"
 #include "PooleList.h"
 
+Discovery *discovery;
+int numUsuaris;
+Frame incoming_poole_frame;
+PooleList pooleList;
+int sockfd_poole;
+int sockfd_bowman;
+
+
 void enviarAcknowledge(int newsock,int errorSocketOrNot,int bowmanOrPoole,PooleList *pooleList) {
 
-    char *header;
+    char *header=NULL;
     if(errorSocketOrNot==-1 ){
         header = "[CON_KO]";
     }
@@ -12,7 +20,9 @@ void enviarAcknowledge(int newsock,int errorSocketOrNot,int bowmanOrPoole,PooleL
         header = "CON_OK";
     }
     
-    char data2[FRAME_SIZE - 3 - strlen(header)]; // -3 por 'type' y 'header_length'.
+    char data2[FRAME_SIZE - 3 - strlen(header) ]; // -3 por 'type' y 'header_length'.
+        memset(data2, 0, FRAME_SIZE - 3 - strlen(header)); //INITIALIZE
+
     if (bowmanOrPoole == 0 && pooleList->head != NULL) {
             PooleNode* pooleListMneysBalancejador = searchPooleListLessBowmans(pooleList);
             if (pooleListMneysBalancejador != NULL) {
@@ -27,10 +37,11 @@ void enviarAcknowledge(int newsock,int errorSocketOrNot,int bowmanOrPoole,PooleL
         snprintf(data2, sizeof(data2), " ");
     }
     char frame_buffer[FRAME_SIZE] = {0};
+    memset(frame_buffer, 0, FRAME_SIZE); //INITIALIZE
+
     fillFrame(frame_buffer,0x01,header,data2);
 
-    write(newsock, frame_buffer, 256);
-
+    write(newsock, frame_buffer, FRAME_SIZE);
     close(newsock);
 }
 
@@ -40,23 +51,30 @@ void process_frame(Frame *frame, PooleList *list) {
         char ip[INET_ADDRSTRLEN];
         int port;
         if (sscanf(frame->data, "%m[^&]&%15[^&]&%d", &userName, ip, &port) == 3) {
-            PooleInfo pooleInfo;
-            if (userName != NULL) {
+            if (userName != NULL) {   ///
+                PooleInfo pooleInfo;
                 pooleInfo.userName = strdup(userName);
-                strcpy(pooleInfo.ip, ip);
-                pooleInfo.port = port;
-                pooleInfo.contador_bowmans= 0;
-                add_poole(list, pooleInfo);
-                //free(pooleInfo.userName);
+                if (pooleInfo.userName == NULL) {
+                    perror("Error allocating memory for userName");
+                }
+                else {
+                    strcpy(pooleInfo.ip, ip);
+                    pooleInfo.port = port;
+                    pooleInfo.contador_bowmans= 0;
+                    add_poole(list, pooleInfo);
+                    // free(pooleInfo.userName);
+                }
+                               free(userName);  // Free the memory here
+
             }
 
-            free(userName);
+            //free(userName);
         }
     }
 }
 
-void freeAndClose(PooleList *pooleList,int sockfd_poole,int sockfd_bowman){
-    free_poole_list(pooleList);
+void freeAndClose(){
+    free_poole_list(&pooleList);
     close(sockfd_poole);
     close(sockfd_bowman);
 }
@@ -71,12 +89,12 @@ void waitSocketPoole(int sockfd_poole,PooleList *pooleList){
          return;
     }
     
-    Frame incoming_poole_frame; // Asegúrate de que la estructura Frame esté definida
     int errorSocketOrNot=receive_frame(newsock, &incoming_poole_frame);
     process_frame(&incoming_poole_frame, pooleList);
     enviarAcknowledge(newsock,errorSocketOrNot,1,pooleList);
     printF("NEW_POOLE\n");
-
+    free(incoming_poole_frame.header);
+    free(incoming_poole_frame.data);
 }
 
 void waitSocketBowman(int sockfd_bowman,PooleList *pooleList){
@@ -88,20 +106,45 @@ void waitSocketBowman(int sockfd_bowman,PooleList *pooleList){
         perror("accept");
          return;
     }
-    Frame incoming_poole_frame; // Asegúrate de que la estructura Frame esté definida
+     // Asegúrate de que la estructura Frame esté definida
     int errorSocketOrNot=receive_frame(newsock, &incoming_poole_frame);
+    
+    if (incoming_poole_frame.header == NULL) {
+        perror("Error: Header not initialized");
+        return;
+    }
+   
+
     if (strcmp(incoming_poole_frame.header, "EXIT") == 0){    
         removeBowmanFromPoole(pooleList,incoming_poole_frame.data); 
         return;       
     }
+    free(incoming_poole_frame.header);
+    free(incoming_poole_frame.data);
     enviarAcknowledge(newsock,errorSocketOrNot,0,pooleList);
+
     printF("NEW_BOWMAN\n");
 }
 
+void kctrlc(){ 
+    freeAndClose();
+    for (int i = 0; i < numUsuaris; ++i){
+        free(discovery[i].ipPoole);
+        free(discovery[i].ipBowman);
+    }
+
+    free(discovery);
+    free(incoming_poole_frame.header);
+    free(incoming_poole_frame.data);
+
+    printF("Thanks for using HAL 9000, see you soon, music lover!\n");
+
+    exit(0);
+}
 
 int main(int argc, char *argv[]) {
-    Discovery *discovery;
-    int numUsuaris;
+    signal(SIGINT, kctrlc);
+    
 
     if (argc < 2) {
         printF("ERROR: Incorrect number of argumentradas\n");   
@@ -119,8 +162,8 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    int sockfd_poole = socket(AF_INET, SOCK_STREAM, 0);// Crear els sockets para Poole i Bowman
-    int sockfd_bowman = socket(AF_INET, SOCK_STREAM, 0);
+     sockfd_poole = socket(AF_INET, SOCK_STREAM, 0);// Crear els sockets para Poole i Bowman
+     sockfd_bowman = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd_poole < 0 || sockfd_bowman < 0) {
         perror("Error creating sockets");
         exit(EXIT_FAILURE);
@@ -155,7 +198,6 @@ int main(int argc, char *argv[]) {
     FD_SET(sockfd_bowman, &master_set);
 
     int max_sd = sockfd_poole > sockfd_bowman ? sockfd_poole : sockfd_bowman;
-    PooleList pooleList;
     init_poole_list(&pooleList);
 
     while (1) {
@@ -170,9 +212,9 @@ int main(int argc, char *argv[]) {
         }
 
         if (FD_ISSET(sockfd_bowman, &read_set)) {        // Verificar si nova conexio amb Bowman
-            waitSocketBowman(sockfd_bowman,&pooleList);            
+            waitSocketBowman(sockfd_bowman,&pooleList);    ///         
         }      
     }
-    freeAndClose(&pooleList,sockfd_bowman,sockfd_poole);
+    freeAndClose();
     return 0;
 }

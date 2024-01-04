@@ -25,7 +25,7 @@ typedef struct
 } Discovery;
 
 void process_frame(Frame *frame, PooleList *list);
-void freeAndClose(PooleList *pooleList,int sockfd_poole,int sockfd_bowman);
+void freeAndClose();
 void waitSocketPoole(int sockfd_poole,PooleList *pooleList);
 void waitSocketBowman(int sockfd_bowman,PooleList *pooleList);
 void enviarAcknowledge(int newsock,int errorSocketOrNot,int bowmanOrPoole,PooleList *pooleList);

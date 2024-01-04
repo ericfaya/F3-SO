@@ -65,7 +65,7 @@ void addSong( FileInfo *fileInfo) {
     //newNode->fileNameDownloaded = strdup(fileName);  // Allocate memory for the string
     newNode->next = NULL;
 
-    pthread_mutex_lock(&songentrada_sockets_mutex);
+    //pthread_mutex_lock(&songentrada_sockets_mutex);
 
     if (head == NULL) {
         head = newNode;
@@ -77,11 +77,11 @@ void addSong( FileInfo *fileInfo) {
         current->next = newNode;
     }
 
-    pthread_mutex_unlock(&songentrada_sockets_mutex);
+    //pthread_mutex_unlock(&songentrada_sockets_mutex);
 }
 
 void removeAllSongs() {
-    pthread_mutex_lock(&songentrada_sockets_mutex);
+    //pthread_mutex_lock(&songentrada_sockets_mutex);
 
     SongNode* current = head;
     SongNode* next;
@@ -95,7 +95,7 @@ void removeAllSongs() {
 
     head = NULL;
 
-    pthread_mutex_unlock(&songentrada_sockets_mutex);
+    //pthread_mutex_unlock(&songentrada_sockets_mutex);
 }
 
 int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
@@ -375,10 +375,7 @@ void *socketListener(void *arg) {
         } else if (strcmp(frame.header, "PLAYLISTS_RESPONSE") == 0) {
             processPlaylistsResponse(&frame);
         } else if (strcmp(frame.header, "NEW_FILE") == 0) {
-            pthread_mutex_lock(&songentrada_sockets_mutex);
             incrementBustiaToCheckDownload++;
-            pthread_mutex_unlock(&songentrada_sockets_mutex);
-
             fileInfo->id_bustiaToCheck=incrementBustiaToCheckDownload;
             print_frame2(&frame);
             int id_bustia2 = extractIdFromFrame2(&frame);

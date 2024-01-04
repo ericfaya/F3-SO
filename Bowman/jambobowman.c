@@ -11,6 +11,7 @@ int mq_id_queue;
 int tocaTancar=1;
 pthread_t listenerThread;
 pthread_t downloadThread;
+semaphore sem;
 pthread_mutex_t songentrada_sockets_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex per larray
 SongNode* head = NULL;
 int incrementBustiaToCheckDownload = 0;
@@ -65,7 +66,7 @@ void addSong( FileInfo *fileInfo) {
     //newNode->fileNameDownloaded = strdup(fileName);  // Allocate memory for the string
     newNode->next = NULL;
 
-    pthread_mutex_lock(&songentrada_sockets_mutex);
+    //pthread_mutex_lock(&songentrada_sockets_mutex);
 
     if (head == NULL) {
         head = newNode;
@@ -77,11 +78,11 @@ void addSong( FileInfo *fileInfo) {
         current->next = newNode;
     }
 
-    pthread_mutex_unlock(&songentrada_sockets_mutex);
+    //pthread_mutex_unlock(&songentrada_sockets_mutex);
 }
 
 void removeAllSongs() {
-    pthread_mutex_lock(&songentrada_sockets_mutex);
+    //pthread_mutex_lock(&songentrada_sockets_mutex);
 
     SongNode* current = head;
     SongNode* next;
@@ -95,7 +96,7 @@ void removeAllSongs() {
 
     head = NULL;
 
-    pthread_mutex_unlock(&songentrada_sockets_mutex);
+    //pthread_mutex_unlock(&songentrada_sockets_mutex);
 }
 
 int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
@@ -210,7 +211,7 @@ int writeBinaryFile(Frame incoming_frame,FileInfo *downloadInfo) {
         return -1;
     }
    // pthread_mutex_lock(&songentrada_sockets_mutex);
-    SEM_signal(&downloadInfo->sem);
+    SEM_signal(&sem);
    // pthread_mutex_unlock(&songentrada_sockets_mutex);
 
 
@@ -306,7 +307,7 @@ void processFileResponse(FileInfo *fileInfo) {
         free(threadInfo);
     }
 }
-void messageQueue(Frame *frame,int mq_id,int id_bustia,semaphore sem) {
+void messageQueue(Frame *frame,int mq_id,int id_bustia) {
     MessageQueue msg;
     msg.frame = *frame;
     msg.mtype = id_bustia;
@@ -335,7 +336,6 @@ void *socketListener(void *arg) {
     int mq_id = args->mq_id;
     int checkOrClear = args->newCommand;
     int jaHoHaFet=0;
-    semaphore sem=args->sem;
 
     FileInfo *fileInfo = malloc(sizeof(FileInfo));
     fileInfo->id_queue = mq_id;
@@ -350,7 +350,7 @@ void *socketListener(void *arg) {
             printaAcknowledge(frame_buffer,&frame);
             
             for(int i = 1;i <= incrementBustiaToCheckDownload;i++){ //implementem cua de missatges pel check;
-                messageQueue(&frame,mq_id,1000+i,sem);      
+                messageQueue(&frame,mq_id,1000+i);      
             }    
             printAllSongs();
  
@@ -375,16 +375,13 @@ void *socketListener(void *arg) {
         } else if (strcmp(frame.header, "PLAYLISTS_RESPONSE") == 0) {
             processPlaylistsResponse(&frame);
         } else if (strcmp(frame.header, "NEW_FILE") == 0) {
-            pthread_mutex_lock(&songentrada_sockets_mutex);
             incrementBustiaToCheckDownload++;
-            pthread_mutex_unlock(&songentrada_sockets_mutex);
-
             fileInfo->id_bustiaToCheck=incrementBustiaToCheckDownload;
             print_frame2(&frame);
             int id_bustia2 = extractIdFromFrame2(&frame);
             fileInfo->id_bustia=id_bustia2;
             createBinaryFile(&frame, fileInfo); 
-            fileInfo->sem=sem;
+
             processFileResponse(fileInfo); 
             //usleep(100000);
 
@@ -392,11 +389,7 @@ void *socketListener(void *arg) {
        }
         else if (strcmp(frame.header, "FILE_DATA") == 0) {
             int id_bustia = extractIdFromFrame(&frame);
-                //pthread_mutex_lock(&songentrada_sockets_mutex);
-
-            messageQueue(&frame,mq_id,id_bustia,sem);            //implementem cua de missatges per les cansons;
-                //pthread_mutex_unlock(&songentrada_sockets_mutex);
-
+            messageQueue(&frame,mq_id,id_bustia);            //implementem cua de missatges per les cansons;
         }
         
         free(frame.header);
@@ -662,7 +655,9 @@ int main(int argc, char *argv[]) {
         printF("Error al crear la cola de mensajes\n");
         exit(EXIT_FAILURE);
     }
-    
+    SEM_constructor_with_name(&sem, ftok("Bowman.c", 'a'));
+
+    SEM_init(&sem, 0);
     while (tocaTancar==1) {    
         write(1, "\n$", 3);
 
@@ -681,15 +676,11 @@ int main(int argc, char *argv[]) {
                 perror("Error allocating memory for threadArgs");
                 exit(EXIT_FAILURE);
             }
-            semaphore sem;
 
-            SEM_constructor_with_name(&sem, ftok("Bowman.c", 'a'));
-
-            SEM_init(&sem, 0);
             threadArgs->mq_id = mq_id_queue;
             //pthread_t listenerThread;
             threadArgs->newCommand = newCommand;
-            threadArgs->sem=sem;
+
             if (pthread_create(&listenerThread, NULL, socketListener, threadArgs) != 0) {
                 perror("Error al crear el hilo de escucha");
                 exit(EXIT_FAILURE);

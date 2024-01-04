@@ -120,6 +120,7 @@ void *sendFileData(void *arg) {
     ssize_t totalBytesSent = 0;
     ssize_t readSize;
     while ((readSize = read(fd_file, buffer, data_capacity)) > 0) {
+
         char frame_buffer[FRAME_SIZE] = {0};
 
         *(int *)(frame_buffer + 3 + header_len) = info->id;
@@ -128,9 +129,10 @@ void *sendFileData(void *arg) {
       
         ssize_t frameDataSize = readSize + sizeof(int) + 1; // Tamaño de los datos en el frame
         fillFrame2(frame_buffer, 0x04, header, frame_buffer + 3 + header_len, frameDataSize);
-                usleep(406);
 
         send(info->socket, frame_buffer, FRAME_SIZE, 0);
+        usleep(3000);
+
         //printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", readSize, totalBytesSent);
         totalBytesSent += readSize;
     }
@@ -161,7 +163,7 @@ void enviarAcknowledge(int newsock,int errorSocketOrNot) {
     send(newsock, frame_buffer, 256, 0);//Bowman send poole
 }
 
-FileTransferInfo *initializeFileTransferInfo(const char *filePath, const char *songName, int socket, int id) {
+    FileTransferInfo *initializeFileTransferInfo(const char *filePath, const char *songName, int socket, int id) {
     FileTransferInfo *info = malloc(sizeof(FileTransferInfo));
     if (info == NULL) {
         perror("Error allocating memory for file transfer info");
@@ -200,6 +202,8 @@ int downloadSong(int socket,Frame *incoming_frame) {
         FileTransferInfo *transferInfo = initializeFileTransferInfo(path_found, song_name, socket, idNumRandom);
         if (transferInfo == NULL) {
             // Handle error
+            perror("Error allocating memory for file transfer info");
+
             free(path_found);
             return -1;
         }
@@ -384,8 +388,12 @@ int main(int argc, char *argv[]){
     char *ipPoole = poolete[0].ipPoole;
     uint16_t portPoole = poolete[0].portPoole;
     char data2[FRAME_SIZE - 3 - strlen("NEW_POOLE")]; // -3 por 'type' y 'header_length'.
+            memset(data2, 0, FRAME_SIZE - 3 - strlen("NEW_POOLE")); //INITIALIZE
+
     snprintf(data2, sizeof(data2), "%s&%s&%u", userName2, ipPoole, portPoole);
-    char frame_buffer[FRAME_SIZE] = {0};
+    char frame_buffer[FRAME_SIZE] ;
+    memset(frame_buffer, 0, FRAME_SIZE); //INITIALIZE
+
     fillFrame(frame_buffer,0x01,"NEW_POOLE",data2);
     
     struct sockaddr_in server_addr;    //sockaddr_in: struct defineix l’estructura que permet configurar diversos paràmetres del socket com IP, port
@@ -397,7 +405,8 @@ int main(int argc, char *argv[]){
         exit(EXIT_FAILURE); 
         //fer free de memoria dinamica
     }
-    int sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    int sockfd =0;
+    sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (sockfd < 0) {
         perror("Cannot create socket");
         exit(EXIT_FAILURE);
@@ -409,18 +418,24 @@ int main(int argc, char *argv[]){
         //fer free de memoria dinamica
         close(sockfd); //Fas close per si acas
     }
-    send(sockfd, frame_buffer, FRAME_SIZE, 0);
-    char info[256];
-    Frame frameAcknoledge;
-    read(sockfd, info, 256);
-    printaAcknowledge(info,&frameAcknoledge);
-    
-    close(sockfd);
-    char *buffer;
-    asprintf(&buffer,"\nReading configuration file\nConnecting %s Server to the system..\nConnected to HAL 9000 System, ready to listen to Bowmans petitions\n\nWaiting for connections...\n\n", userName2);  
-    write(STDOUT_FILENO, buffer, strlen(buffer));   
-    free(buffer);
-    connectToBowman(poolete);
-    //freeAndClose(/*poole_frame,*/poolete,numUsuaris);
+    ssize_t bytes_sent = send(sockfd, frame_buffer, FRAME_SIZE, 0);
+    if (bytes_sent < 0) {
+        perror("Error sending data");
+    } else {
+        printf("Sent %zd bytes\n", bytes_sent);
+        char info[256];
+        Frame frameAcknoledge;
+        read(sockfd, info, 256);
+        printaAcknowledge(info,&frameAcknoledge);
+        
+        close(sockfd);
+        char *buffer;
+        asprintf(&buffer,"\nReading configuration file\nConnecting %s Server to the system..\nConnected to HAL 9000 System, ready to listen to Bowmans petitions\n\nWaiting for connections...\n\n", userName2);  
+        write(STDOUT_FILENO, buffer, strlen(buffer));   
+        free(buffer);
+        connectToBowman(poolete);
+        //freeAndClose(/*poole_frame,*/poolete,numUsuaris);
+    }
+   
     return 0;  
 }

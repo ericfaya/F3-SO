@@ -29,7 +29,6 @@
 
 
 #define printF(x) write(1, x, strlen(x))
-#define MAX_FDS 10
 
 
 typedef struct

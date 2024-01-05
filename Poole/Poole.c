@@ -4,10 +4,78 @@
 Poole *poolete;
 int numUsuaris;//Hem de saber cuantradas usuaris estan conectats en el servidor(discovery)
 int sockfd_poole_server;
+int tocaTancar=1;
+Frame incoming_frame;
+pthread_t fileTransferThread;
+pthread_t thread_id;
 
 pthread_mutex_t clientrada_sockets_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex per larray
 ClientNode* head = NULL;
+     /*    semaphore sem;
 
+    key_t key2 = IPC_PRIVATE +1; // Use IPC_PRIVATE to generate a unique key
+    if (key2 == -1) {
+        perror("Error generating key");
+        fprintf(stderr, "Additional information: Something went wrong with ftok.\n");
+        //exit(EXIT_FAILURE);
+    }
+        printf("Generated key: %d\n", key2);
+
+    SEM_constructor_with_name(&sem, key2);
+    printf("Semaphore value %d",sem.shmid);
+
+    SEM_init(&sem, 0);
+    printf("Semaphore value %d",sem.shmid);
+       // SEM_signal(&sem);
+      //  SEM_wait(&sem);*/
+void removeAllClients() {
+    pthread_mutex_lock(&clientrada_sockets_mutex);
+
+    ClientNode* current = head;
+    ClientNode* next;
+
+    while (current != NULL) {
+        next = current->next;
+        close(current->sockfd); // Close the socket
+        free(current);
+        current = next;
+    }
+
+    head = NULL;
+
+    pthread_mutex_unlock(&clientrada_sockets_mutex);
+}
+void kctrlc(){ 
+    tocaTancar = 0;
+
+    pthread_cancel(fileTransferThread);
+    pthread_join(fileTransferThread, NULL);
+    pthread_detach(fileTransferThread);
+
+    pthread_cancel(thread_id);
+    pthread_join(thread_id, NULL);
+    pthread_detach(thread_id);
+
+    
+
+    pthread_mutex_destroy(&clientrada_sockets_mutex);
+    
+    removeAllClients();
+    close(sockfd_poole_server);
+    for (int i = 0; i < numUsuaris; ++i){
+        free(poolete[i].fullName);
+        free(poolete[i].pathName);
+        free(poolete[i].ipDiscovery);
+        free(poolete[i].ipPoole);
+    }
+
+    free(poolete);
+   // free(incoming_frame.header);
+    //free(incoming_frame.data);
+    printF("Thanks for using HAL 9000, see you soon, music lover!\n");
+
+    exit(0);
+}
 void addClient(int sockfd) {
     ClientNode* newNode = (ClientNode*)malloc(sizeof(ClientNode));
     if (!newNode) {
@@ -33,23 +101,7 @@ void addClient(int sockfd) {
     pthread_mutex_unlock(&clientrada_sockets_mutex);
 }
 
-void removeAllClients() {
-    pthread_mutex_lock(&clientrada_sockets_mutex);
 
-    ClientNode* current = head;
-    ClientNode* next;
-
-    while (current != NULL) {
-        next = current->next;
-        close(current->sockfd); // Close the socket
-        free(current);
-        current = next;
-    }
-
-    head = NULL;
-
-    pthread_mutex_unlock(&clientrada_sockets_mutex);
-}
 
 void sendSongListResponse(int socket) {
     char data2[FRAME_SIZE - 3 - strlen("SONGS_RESPONSE")]; // -3 por 'type' y 'header_length'.
@@ -59,7 +111,9 @@ void sendSongListResponse(int socket) {
     char frame_buffer[FRAME_SIZE] = {0};
     fillFrame(frame_buffer,0x02,"SONGS_RESPONSE",data2);
     send(socket, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
+    free(songs);
 }
+
 void sendPlayListResponse(int socket) {
     char data2[FRAME_SIZE - 3 - strlen("PLAYLISTS_RESPONSE")]; 
     char *songs = (char *)malloc(1024);
@@ -71,7 +125,9 @@ void sendPlayListResponse(int socket) {
     char frame_buffer[FRAME_SIZE] = {0};
     fillFrame(frame_buffer,0x02,"PLAYLISTS_RESPONSE",data2);
     send(socket, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
+    free(songs);
 }
+
 void *sendFileData(void *arg) {
     FileTransferInfo *info = (FileTransferInfo *)arg;
 
@@ -119,7 +175,7 @@ void *sendFileData(void *arg) {
     }
     ssize_t totalBytesSent = 0;
     ssize_t readSize;
-    while ((readSize = read(fd_file, buffer, data_capacity)) > 0) {
+    while ((readSize = read(fd_file, buffer, data_capacity)) > 0 && tocaTancar==1) {
 
         char frame_buffer[FRAME_SIZE] = {0};
 
@@ -131,7 +187,7 @@ void *sendFileData(void *arg) {
         fillFrame2(frame_buffer, 0x04, header, frame_buffer + 3 + header_len, frameDataSize);
 
         send(info->socket, frame_buffer, FRAME_SIZE, 0);
-        usleep(3000);
+        usleep(1000);
 
         //printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", readSize, totalBytesSent);
         totalBytesSent += readSize;
@@ -139,7 +195,7 @@ void *sendFileData(void *arg) {
     if (readSize == -1) {
         perror("Error reading from the file");
     }
-   
+    free(buffer);
     close(fd_file);
     free(info->song_name);
     free(info->filePath);
@@ -149,9 +205,9 @@ void *sendFileData(void *arg) {
     return NULL;
 }
 
-void enviarAcknowledge(int newsock,int errorSocketOrNot) {
+void enviarAcknowledge(int newsock,ssize_t bytes_read/*,int errorSocketOrNot*/){
     char *header;
-    if(errorSocketOrNot==-1 ){
+    if(bytes_read==-1 ){
         header = "[CON_KO]";
     }
     else{
@@ -208,7 +264,8 @@ int downloadSong(int socket,Frame *incoming_frame) {
             return -1;
         }
 
-        pthread_t fileTransferThread;
+
+       
 
         if (pthread_create(&fileTransferThread, NULL, sendFileData, transferInfo) != 0) {
             perror("Error creating file transfer thread");
@@ -218,26 +275,27 @@ int downloadSong(int socket,Frame *incoming_frame) {
             free(transferInfo);
             return -1;
         }
-        free(path_found);
-        free(song_name);
+                free(path_found);
+
+        //free(song_name);
         
     } 
     return 0;
 }
 
-int handleBowmanConnection(int *newsock, int errorSocketOrNot, Frame *incoming_frame) {
-    if (errorSocketOrNot < 0) {
+int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrNot*/, Frame *incoming_frame) {
+    /*if (errorSocketOrNot < 0) {
         perror("Error en handleBowmanConnection");
         close(*newsock);
         return -1;
-    }
+    }*/
     if (strcmp(incoming_frame->header, "NEW_BOWMAN") == 0) { 
         char *buffer;
         asprintf(&buffer,"New user connected: %s.\n\n...", incoming_frame->data);  
         write(STDOUT_FILENO, buffer, strlen(buffer));   
         free(buffer);
     
-        enviarAcknowledge(*newsock, errorSocketOrNot);
+        enviarAcknowledge(*newsock,bytes_read/*, errorSocketOrNot*/);
     }
     else if (strcmp(incoming_frame->header, "LIST_SONGS") == 0)
     {
@@ -273,33 +331,40 @@ int handleBowmanConnection(int *newsock, int errorSocketOrNot, Frame *incoming_f
     }
     else if (strcmp(incoming_frame->header, "EXIT") == 0)
     {
-        enviarAcknowledge(*newsock,errorSocketOrNot);       
+        enviarAcknowledge(*newsock,bytes_read/*,errorSocketOrNot*/);   
+            
         return -1;
     }
-    free(incoming_frame->header);
-    free(incoming_frame->data);
+    
     return 0;
 }
 void *clientHandler(void *args) {
     ThreadArgs *threadArgs = (ThreadArgs *)args;
     int clientSocket = threadArgs->socket;
     free(threadArgs);
-    while (1) {
-        Frame incoming_frame;
-        int errorSocketOrNot = receive_frame(clientSocket, &incoming_frame);
-        if (errorSocketOrNot == -1) {
-            break;
-        }/* else if (errorSocketOrNot == 0) {
-            printf("Debug: Client tanca la conexio\n");
-            break;
-        }*/
-        int exitOrNot = handleBowmanConnection(&clientSocket, errorSocketOrNot, &incoming_frame);
-        if (exitOrNot == -1) {
-            break;
+    while (tocaTancar==1) {
+       // Frame incoming_frame;
+      
+        ssize_t  bytes_read= receive_frame(clientSocket, &incoming_frame);
+        if (bytes_read == -1) {
+            printF("Error poole has been disconnected\n");
+            kctrlc();
+            break;        
         }
+        else{
+            int exitOrNot = handleBowmanConnection(&clientSocket,bytes_read/*, errorSocketOrNot*/, &incoming_frame);
+            if (exitOrNot == -1) {
+                free(incoming_frame.header);
+                free(incoming_frame.data);
+                break;
+            }
+        }
+        free(incoming_frame.header);
+        free(incoming_frame.data);
     }
-    close(clientSocket);
-    pthread_exit(NULL);
+    //close(clientSocket);
+    return NULL;
+    //pthread_exit(NULL);
 }
 void connectToBowman(Poole *poolete) {
     uint16_t poole_port = poolete[0].portPoole;
@@ -330,31 +395,29 @@ void connectToBowman(Poole *poolete) {
         perror("Error listening on socket");
         exit(EXIT_FAILURE);
     }
-    while (1) {
+    while (tocaTancar==1) {
         struct sockaddr_in c_addr;
         socklen_t c_len = sizeof(c_addr);
         int newsock = accept(sockfd_poole_server, (struct sockaddr *)&c_addr, &c_len);
         if (newsock < 0) {
             perror("accept");
-            continue;  
+            return;  
         }
-          addClient(newsock);
+        addClient(newsock);
 
         ThreadArgs *args = malloc(sizeof(ThreadArgs));
         if (!args) {
             perror("Error al asignar memoria para args");
             close(newsock);
-            continue;
+            return;
         }
         args->socket = newsock;
  
         //crear thread per gestionar connexio
-        pthread_t thread_id;
         if (pthread_create(&thread_id, NULL, clientHandler, (void *)args) != 0) {
             perror("Error al crear thread");
             free(args);
             close(newsock);
-        } else {
         }
     }
     
@@ -362,18 +425,9 @@ void connectToBowman(Poole *poolete) {
     close(sockfd_poole_server);
 }
 
-void kctrlc(){ 
-
-    pthread_mutex_destroy(&clientrada_sockets_mutex);
-    removeAllClients();
-    close(sockfd_poole_server);
-    printF("Thanks for using HAL 9000, see you soon, music lover!\n");
-
-    exit(0);
-}
 int main(int argc, char *argv[]){
     signal(SIGINT, kctrlc);
-    signal(SIGKILL, kctrlc);
+    //signal(SIGKILL, kctrlc);
 
     if (argc != 2){
         printF("ERROR: Incorrect number of argumentradas\n");
@@ -422,11 +476,12 @@ int main(int argc, char *argv[]){
     if (bytes_sent < 0) {
         perror("Error sending data");
     } else {
-        printf("Sent %zd bytes\n", bytes_sent);
         char info[256];
-        Frame frameAcknoledge;
+        //Frame frameAcknoledge;
         read(sockfd, info, 256);
-        printaAcknowledge(info,&frameAcknoledge);
+        printaAcknowledge(info,&incoming_frame);
+        free(incoming_frame.header);
+        free(incoming_frame.data);
         
         close(sockfd);
         char *buffer;

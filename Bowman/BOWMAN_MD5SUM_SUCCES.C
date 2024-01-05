@@ -571,8 +571,8 @@ int controleCommands(char *whichCommand, int *connectedOrNot) {
             if(whichCommand2 == NULL){
                 *connectedOrNot=connectBowman(tokens);
                 if(*connectedOrNot){
-                    printF(" connected to HAL 9000 system, welcome music lover!\n");
-                    return 0; //ASI NO CREA UN THREAD CON EL CONNECT
+                 printF(" connected to HAL 9000 system, welcome music lover!\n");
+                    return 0;//ASI NO SE CREA UN THREAD CON EL CONNECT
                 }
             }
             else{
@@ -664,7 +664,7 @@ int main(int argc, char *argv[]) {
         write(1, "\n$", 3);
 
         command = read_until(STDIN_FILENO, '\n');         /* 1R THREAD ESCOLTAR DE LA TERMINAL/ //canvi fet que deien els becaris*/
-        if (command == NULL ) {// Leer el comando del usuario
+        if (command == NULL) {// Leer el comando del usuario
             free(command); 
             break;
             continue; 

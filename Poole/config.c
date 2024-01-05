@@ -26,6 +26,10 @@ char *read_until(int fd, char end){
         if (c != end && size > 0)
         {
             string = (char *)realloc(string, sizeof(char) * (i + 2));
+            if (!string) {
+                perror("Unable to allocate memory");
+                exit(EXIT_FAILURE);
+            }
             string[i++] = c;
         }
         else
@@ -74,7 +78,8 @@ Poole* readTextFile(char *file, int *numUsuaris)
 {
     int fd, readSize;
     Poole *poolete;
-    char *trash;
+    char trash;
+
 
     // Try to open the file
     fd = open(file, O_RDONLY);
@@ -94,9 +99,7 @@ Poole* readTextFile(char *file, int *numUsuaris)
         *numUsuaris = *numUsuaris + 1;
 
         // Read EOF
-        trash = malloc(sizeof(char));
-        readSize = read(fd, trash, 1);
-        free(trash);
+        readSize = read(fd, &trash, 1);
      
         if (readSize == 0){   // Check if EOF
             break;

@@ -46,12 +46,6 @@ typedef struct {
 } ThreadArgs;
 
 typedef struct {
-    int socket; // Socket del cliente Bowman
-    const char *path_found;
-    int idNumRandom;
-} ThreadArgs2;
-
-typedef struct {
     int socket;
     char *filePath;   // Flexible array member
     char *song_name;  // Flexible array member
@@ -67,8 +61,8 @@ typedef struct ClientNode {
 
 
 
-int handleBowmanConnection(int *newsock,int errorSocketOrNot, Frame *incoming_frame) ;
-void enviarAcknowledge(int newsock,int errorSocketOrNot);
+int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrNot*/, Frame *incoming_frame);
+void enviarAcknowledge(int newsock,ssize_t bytes_read/*,int errorSocketOrNot*/);
 void printaAcknowledge(char buffer[256], Frame *frame) ; //Nomes es per debugar
 void freeAndClose(/*Frame *poole_frame,*/Poole *poolete,int numUsuaris);
 void waitSocketBowman(int sockfd_bowman);

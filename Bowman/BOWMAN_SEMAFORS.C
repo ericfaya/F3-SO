@@ -1,6 +1,7 @@
 #include "Bowman.h"
 #include "config.h"
 
+
 Bowman* bowmaneta;
 int numUsuaris;
 char *tokens[MAX_TOKENS]; //TODO FER LO MATEIX PERO SENSE STATICA
@@ -8,10 +9,13 @@ int sockfd_poole;
 int isConnectedToPoole = 0;
 int mq_id_queue;
 
+semaphore sem;
+//semaphore sem2;
+
+
 int tocaTancar=1;
 pthread_t listenerThread;
 pthread_t downloadThread;
-semaphore sem;
 pthread_mutex_t songentrada_sockets_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex per larray
 SongNode* head = NULL;
 int incrementBustiaToCheckDownload = 0;
@@ -66,7 +70,7 @@ void addSong( FileInfo *fileInfo) {
     //newNode->fileNameDownloaded = strdup(fileName);  // Allocate memory for the string
     newNode->next = NULL;
 
-    //pthread_mutex_lock(&songentrada_sockets_mutex);
+    pthread_mutex_lock(&songentrada_sockets_mutex);
 
     if (head == NULL) {
         head = newNode;
@@ -78,11 +82,11 @@ void addSong( FileInfo *fileInfo) {
         current->next = newNode;
     }
 
-    //pthread_mutex_unlock(&songentrada_sockets_mutex);
+    pthread_mutex_unlock(&songentrada_sockets_mutex);
 }
 
 void removeAllSongs() {
-    //pthread_mutex_lock(&songentrada_sockets_mutex);
+    pthread_mutex_lock(&songentrada_sockets_mutex);
 
     SongNode* current = head;
     SongNode* next;
@@ -96,7 +100,7 @@ void removeAllSongs() {
 
     head = NULL;
 
-    //pthread_mutex_unlock(&songentrada_sockets_mutex);
+    pthread_mutex_unlock(&songentrada_sockets_mutex);
 }
 
 int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
@@ -184,15 +188,85 @@ void connectDiscovery(char *tokens[]){
     free(buffer);
 }
 
-void processSongsResponse(Frame *frame) { //TODO es podria ficar al frame.c
-    printF("songs:\n");
-    print_frame2(frame);
+void processSongsResponse(Frame *frame) {
+   //primer contem songs
+    int count = 0;
+    char *tmp = strdup(frame->data);  
+    char *token = strtok(tmp, "&");
+    while (token != NULL) {
+        count++;
+        token = strtok(NULL, "&");
+    }
+    free(tmp);
+
+    
+    char *message = malloc(1024 * sizeof(char)); 
+    if (message == NULL) {
+        perror("malloc failed");
+        return;
+    }
+    sprintf(message, "There are %d songs available for download:\n", count);
+    write(STDOUT_FILENO, message, strlen(message));
+
+    // Imprimim song
+    token = strtok(frame->data, "&");
+    int songNumber = 1;
+    while (token != NULL) {
+        sprintf(message, "%d. %s\n", songNumber, token);
+        write(STDOUT_FILENO, message, strlen(message));
+        token = strtok(NULL, "&");
+        songNumber++;
+    }
+    free(message);  
 }
 
-void processPlaylistsResponse(Frame *frame) {//TODO es podria ficar al frame.c
-    printF("playlists:\n");
-    print_frame2(frame);
+
+void processPlaylistsResponse(Frame *frame) {
+    // primer contem numero de playlists
+    int count = 0;
+    char *tmp = strdup(frame->data);
+    char *saveptr1;
+    char *playlist = strtok_r(tmp, "#", &saveptr1);
+    while (playlist != NULL) {
+        count++;
+        playlist = strtok_r(NULL, "#", &saveptr1);
+    }
+    free(tmp);
+
+    
+    char *message = malloc(1024 * sizeof(char));
+    if (message == NULL) {
+        perror("malloc failed");
+        return;
+    }
+    sprintf(message, "There are %d lists available for download:\n", count);
+    write(STDOUT_FILENO, message, strlen(message));
+
+    // Imprimim llista i songs
+    char *saveptr2;
+    playlist = strtok_r(frame->data, "#", &saveptr1);
+    int playlistNumber = 1;
+    while (playlist != NULL) {
+        char *song = strtok_r(playlist, "&", &saveptr2);
+        sprintf(message, "%d. %s\n", playlistNumber, song);  //llista
+        write(STDOUT_FILENO, message, strlen(message));
+        song = strtok_r(NULL, "&", &saveptr2);
+        char letter = 'a';
+
+        while (song != NULL) {
+            sprintf(message, "\t%c. %s\n", letter, song);  // nom songs
+            write(STDOUT_FILENO, message, strlen(message));
+            song = strtok_r(NULL, "&", &saveptr2);
+            letter++;
+        }
+
+        playlist = strtok_r(NULL, "#", &saveptr1);
+        playlistNumber++;
+    }
+    free(message);  
 }
+
+
 
 int writeBinaryFile(Frame incoming_frame,FileInfo *downloadInfo) {
 
@@ -211,11 +285,12 @@ int writeBinaryFile(Frame incoming_frame,FileInfo *downloadInfo) {
         return -1;
     }
    // pthread_mutex_lock(&songentrada_sockets_mutex);
-    SEM_signal(&sem);
+    
    // pthread_mutex_unlock(&songentrada_sockets_mutex);
+  
+            SEM_signal(&sem);
 
-
-    //printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, downloadInfo->totalBytesReceived);
+   // printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, downloadInfo->totalBytesReceived);
     downloadInfo->totalBytesReceived += bytes_written;
     return 0;
 }
@@ -302,6 +377,8 @@ void processFileResponse(FileInfo *fileInfo) {
     FileInfo *threadInfo = malloc(sizeof(FileInfo));
     *threadInfo = *fileInfo;
     pthread_t downloadThread;
+                printF("NEEEEEEEEEEEEEEEEEEEEEEEEEEEEW THREAD DOWNLOAD  Songs\n\n");
+
     if (pthread_create(&downloadThread, NULL, downloadSongs, threadInfo) != 0) {    // nou thread pels Downloads
         perror("Error creating download thread");
         free(threadInfo);
@@ -313,17 +390,15 @@ void messageQueue(Frame *frame,int mq_id,int id_bustia) {
     msg.mtype = id_bustia;
 
     //printf("Envio per la cua %d + id bustia : %ld \n\n", mq_id, msg.mtype);
+
     if( tocaTancar == 1){
         if (msgsnd(mq_id, &msg, sizeof(MessageQueue)- sizeof(long) , 0) == -1) {    //if (msgsnd(mq_id, &msg, sizeof(Frame) - sizeof(long), 0) == -1) {
             perror("Error al enviar el mensaje");
             exit(EXIT_FAILURE);
         }
-           // pthread_mutex_lock(&songentrada_sockets_mutex);
-
-        SEM_wait(&sem);
-          //  pthread_mutex_unlock(&songentrada_sockets_mutex);
-
     }
+
+
 }
 
 void *socketListener(void *arg) {
@@ -340,7 +415,6 @@ void *socketListener(void *arg) {
     FileInfo *fileInfo = malloc(sizeof(FileInfo));
     fileInfo->id_queue = mq_id;
     while (tocaTancar==1) {
-        usleep(2000);
 
         Frame frame;
        
@@ -375,23 +449,30 @@ void *socketListener(void *arg) {
         } else if (strcmp(frame.header, "PLAYLISTS_RESPONSE") == 0) {
             processPlaylistsResponse(&frame);
         } else if (strcmp(frame.header, "NEW_FILE") == 0) {
+            pthread_mutex_lock(&songentrada_sockets_mutex);
             incrementBustiaToCheckDownload++;
+            pthread_mutex_unlock(&songentrada_sockets_mutex);
+
             fileInfo->id_bustiaToCheck=incrementBustiaToCheckDownload;
             print_frame2(&frame);
             int id_bustia2 = extractIdFromFrame2(&frame);
             fileInfo->id_bustia=id_bustia2;
             createBinaryFile(&frame, fileInfo); 
-
             processFileResponse(fileInfo); 
-            //usleep(100000);
 
 
        }
         else if (strcmp(frame.header, "FILE_DATA") == 0) {
             int id_bustia = extractIdFromFrame(&frame);
+                //pthread_mutex_lock(&songentrada_sockets_mutex);
+
             messageQueue(&frame,mq_id,id_bustia);            //implementem cua de missatges per les cansons;
+                //pthread_mutex_unlock(&songentrada_sockets_mutex);
+                            SEM_wait(&sem);
+
+
         }
-        
+
         free(frame.header);
         free(frame.data);
     }
@@ -572,10 +653,11 @@ int controleCommands(char *whichCommand, int *connectedOrNot) {
                 *connectedOrNot=connectBowman(tokens);
                 if(*connectedOrNot){
                     printF(" connected to HAL 9000 system, welcome music lover!\n");
-                    return 0; //ASI NO CREA UN THREAD CON EL CONNECT
+                    return 0;
                 }
             }
             else{
+                flag=0;
                 printF("Unknown command\n");
             } 
             flag=1;
@@ -621,10 +703,12 @@ int controleCommands(char *whichCommand, int *connectedOrNot) {
             }
             
             else if(flag==0){
+                return 0;
                 printF("ERROR: Please input a valid command.\n");
             }
         }
         else{
+            return 0;
             printF("Cannot make any command, you are not connected to HAL 9000\n");
         } 
     }
@@ -651,20 +735,34 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Additional information: Something went wrong with ftok.\n");
         //exit(EXIT_FAILURE);
     }
+        printf("Generated key: %d\n", key);
+
         mq_id_queue=msgget(key, IPC_CREAT | 0666);
     if (mq_id_queue == -1) {
         perror("Error al obtener/crear la cola de mensajes");
         printF("Error al crear la cola de mensajes\n");
         exit(EXIT_FAILURE);
     }
-    SEM_constructor_with_name(&sem, key+1);
+    
+    key_t key2 = IPC_PRIVATE +1; // Use IPC_PRIVATE to generate a unique key
+    if (key2 == -1) {
+        perror("Error generating key");
+        fprintf(stderr, "Additional information: Something went wrong with ftok.\n");
+        //exit(EXIT_FAILURE);
+    }
+        printf("Generated key: %d\n", key2);
+
+    SEM_constructor_with_name(&sem, key2);
+    printf("Semaphore value %d",sem.shmid);
 
     SEM_init(&sem, 0);
+     printf("Semaphore value %d",sem.shmid);
+
     while (tocaTancar==1) {    
         write(1, "\n$", 3);
 
         command = read_until(STDIN_FILENO, '\n');         /* 1R THREAD ESCOLTAR DE LA TERMINAL/ //canvi fet que deien els becaris*/
-        if (command == NULL ) {// Leer el comando del usuario
+        if (command == NULL /*|| strlen(command) == 0*/) {// Leer el comando del usuario
             free(command); 
             break;
             continue; 
@@ -679,10 +777,12 @@ int main(int argc, char *argv[]) {
                 exit(EXIT_FAILURE);
             }
 
+           
+
             threadArgs->mq_id = mq_id_queue;
             //pthread_t listenerThread;
             threadArgs->newCommand = newCommand;
-
+            printF("NEEEEEEEEEEEEEEEEEEEEEEEEEEEEW THREAD SOCKET LISTENER\n\n");
             if (pthread_create(&listenerThread, NULL, socketListener, threadArgs) != 0) {
                 perror("Error al crear el hilo de escucha");
                 exit(EXIT_FAILURE);

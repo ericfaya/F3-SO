@@ -19,5 +19,4 @@ int SEM_init(const semaphore * sem, const int v);
 int SEM_destructor(const semaphore * sem);
 int SEM_wait(const semaphore * sem);
 int SEM_signal(const semaphore * sem);
-
 #endif /* MOD_SEMAPHORE_H */

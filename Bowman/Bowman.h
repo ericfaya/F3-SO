@@ -47,7 +47,6 @@ typedef struct {
     int id_queue;
     int id_bustia;
     int id_bustiaToCheck;
-    semaphore sem;
  
 } FileInfo;
 
@@ -59,7 +58,6 @@ typedef struct {
 typedef struct {
     int mq_id;
     int newCommand;
-    semaphore sem;
 } ThreadArgs;
 
 typedef struct SongNode {

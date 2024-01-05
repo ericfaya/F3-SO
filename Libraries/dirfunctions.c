@@ -9,6 +9,7 @@ char* my_strdup(const char *s) {
     return dup;
 }
 
+//Funcio recursiva per recorre cansons en
 char* findSongInDirectory(const char *directory, const char *song_name) {
     DIR *dir;
     struct dirent *entry;
@@ -37,8 +38,10 @@ char* findSongInDirectory(const char *directory, const char *song_name) {
         struct stat path_stat;
         stat(path, &path_stat);
         if (S_ISDIR(path_stat.st_mode)) {
+           // free(path);
             found_path = findSongInDirectory(path, song_name);
             if (found_path != NULL) {
+                free(path);
                 break;
             }        
         } else {
@@ -52,13 +55,17 @@ char* findSongInDirectory(const char *directory, const char *song_name) {
                 
                 if (strcmp(nomSenseExt, song_name) == 0 || strcmp(entry->d_name, song_name) == 0) {
                     found_path = my_strdup(path);//found_path = strdup(path);  //strcpy(path_found, path); 
-                                        printf("Found path: %s\n", found_path);
-
+                    //printf("Found path: %s\n", found_path);
+                    free(path);
                     //found = 1;
+                    break;
                 }
             }
         }
+        free(path);
     }
+    
+
     closedir(dir);
     return found_path;
 }

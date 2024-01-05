@@ -43,7 +43,7 @@ void enviarAcknowledge(int newsock,int errorSocketOrNot,int bowmanOrPoole,PooleL
 
     write(newsock, frame_buffer, FRAME_SIZE);
     close(newsock);
-}
+} 
 
 void process_frame(Frame *frame, PooleList *list) {
     if (frame->type == 0x01 && strcmp(frame->header, "NEW_POOLE") == 0) {
@@ -79,6 +79,22 @@ void freeAndClose(){
     close(sockfd_bowman);
 }
 
+void kctrlc(){ 
+    freeAndClose();
+    for (int i = 0; i < numUsuaris; ++i){
+        free(discovery[i].ipPoole);
+        free(discovery[i].ipBowman);
+    }
+
+    free(discovery);
+    //free(incoming_poole_frame.header);
+    //free(incoming_poole_frame.data);
+
+    printF("Thanks for using HAL 9000, see you soon, music lover!\n");
+
+    exit(0);
+}
+
 void waitSocketPoole(int sockfd_poole,PooleList *pooleList){
 
     struct sockaddr_in c_addr;
@@ -86,7 +102,7 @@ void waitSocketPoole(int sockfd_poole,PooleList *pooleList){
     int newsock = accept(sockfd_poole, (struct sockaddr *)&c_addr, &c_len);
     if (newsock < 0) {
         perror("accept");
-         return;
+        return;
     }
     
     int errorSocketOrNot=receive_frame(newsock, &incoming_poole_frame);
@@ -108,7 +124,11 @@ void waitSocketBowman(int sockfd_bowman,PooleList *pooleList){
     }
      // Asegúrate de que la estructura Frame esté definida
     int errorSocketOrNot=receive_frame(newsock, &incoming_poole_frame);
-    
+    if(errorSocketOrNot==-1){
+        free(incoming_poole_frame.header);
+        free(incoming_poole_frame.data);
+        kctrlc();
+    }
     if (incoming_poole_frame.header == NULL) {
         perror("Error: Header not initialized");
         return;
@@ -126,21 +146,6 @@ void waitSocketBowman(int sockfd_bowman,PooleList *pooleList){
     printF("NEW_BOWMAN\n");
 }
 
-void kctrlc(){ 
-    freeAndClose();
-    for (int i = 0; i < numUsuaris; ++i){
-        free(discovery[i].ipPoole);
-        free(discovery[i].ipBowman);
-    }
-
-    free(discovery);
-    free(incoming_poole_frame.header);
-    free(incoming_poole_frame.data);
-
-    printF("Thanks for using HAL 9000, see you soon, music lover!\n");
-
-    exit(0);
-}
 
 int main(int argc, char *argv[]) {
     signal(SIGINT, kctrlc);

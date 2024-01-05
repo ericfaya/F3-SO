@@ -1,6 +1,7 @@
 #include "semaphore_v2.h"
 #include <assert.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 
 
@@ -107,3 +108,5 @@ int SEM_signal (const semaphore * sem)
 	assert (sem != NULL);
 	return semop(sem->shmid, &o, 1);
 }
+
+

@@ -183,15 +183,85 @@ void connectDiscovery(char *tokens[]){
     free(buffer);
 }
 
-void processSongsResponse(Frame *frame) { //TODO es podria ficar al frame.c
-    printF("songs:\n");
-    print_frame2(frame);
+void processSongsResponse(Frame *frame) {
+   //primer contem songs
+    int count = 0;
+    char *tmp = strdup(frame->data);  
+    char *token = strtok(tmp, "&");
+    while (token != NULL) {
+        count++;
+        token = strtok(NULL, "&");
+    }
+    free(tmp);
+
+    
+    char *message = malloc(1024 * sizeof(char)); 
+    if (message == NULL) {
+        perror("malloc failed");
+        return;
+    }
+    sprintf(message, "There are %d songs available for download:\n", count);
+    write(STDOUT_FILENO, message, strlen(message));
+
+    // Imprimim song
+    token = strtok(frame->data, "&");
+    int songNumber = 1;
+    while (token != NULL) {
+        sprintf(message, "%d. %s\n", songNumber, token);
+        write(STDOUT_FILENO, message, strlen(message));
+        token = strtok(NULL, "&");
+        songNumber++;
+    }
+    free(message);  
 }
 
-void processPlaylistsResponse(Frame *frame) {//TODO es podria ficar al frame.c
-    printF("playlists:\n");
-    print_frame2(frame);
+
+void processPlaylistsResponse(Frame *frame) {
+    // primer contem numero de playlists
+    int count = 0;
+    char *tmp = strdup(frame->data);
+    char *saveptr1;
+    char *playlist = strtok_r(tmp, "#", &saveptr1);
+    while (playlist != NULL) {
+        count++;
+        playlist = strtok_r(NULL, "#", &saveptr1);
+    }
+    free(tmp);
+
+    
+    char *message = malloc(1024 * sizeof(char));
+    if (message == NULL) {
+        perror("malloc failed");
+        return;
+    }
+    sprintf(message, "There are %d lists available for download:\n", count);
+    write(STDOUT_FILENO, message, strlen(message));
+
+    // Imprimim llista i songs
+    char *saveptr2;
+    playlist = strtok_r(frame->data, "#", &saveptr1);
+    int playlistNumber = 1;
+    while (playlist != NULL) {
+        char *song = strtok_r(playlist, "&", &saveptr2);
+        sprintf(message, "%d. %s\n", playlistNumber, song);  //llista
+        write(STDOUT_FILENO, message, strlen(message));
+        song = strtok_r(NULL, "&", &saveptr2);
+        char letter = 'a';
+
+        while (song != NULL) {
+            sprintf(message, "\t%c. %s\n", letter, song);  // nom songs
+            write(STDOUT_FILENO, message, strlen(message));
+            song = strtok_r(NULL, "&", &saveptr2);
+            letter++;
+        }
+
+        playlist = strtok_r(NULL, "#", &saveptr1);
+        playlistNumber++;
+    }
+    free(message);  
 }
+
+
 
 int writeBinaryFile(Frame incoming_frame,FileInfo *downloadInfo) {
 

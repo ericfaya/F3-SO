@@ -8,7 +8,48 @@ char* my_strdup(const char *s) {
     }
     return dup;
 }
+void findSongsInList(const char *directory, PathList *resultList) {
+    DIR *dir;
+    struct dirent *entry;
 
+    dir = opendir(directory);
+    if (dir == NULL) {
+        perror("No se pudo abrir el directorio");
+        return;
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_name[0] == '.') {
+            continue;
+        }
+
+        size_t path_length = strlen(directory) + strlen(entry->d_name) + 2;  // +1 for '/' and +1 for null terminator
+        char *path = (char *)malloc(path_length);
+        if (path == NULL) {
+            perror("Error allocating memory for path");
+            closedir(dir);
+            return;
+        }
+
+        snprintf(path, path_length, "%s/%s", directory, entry->d_name);
+        struct stat path_stat;
+        stat(path, &path_stat);
+        
+        if (S_ISDIR(path_stat.st_mode)) {
+            // Omitir directorios, solo estamos interesados en archivos
+            continue;
+        } else {
+            char *dot = strstr(entry->d_name, ".mp3");
+            if (dot && strcmp(dot, ".mp3") == 0) {
+
+                addToPathList(resultList, path,entry->d_name);
+            }
+        }
+        free(path);
+    }
+
+    closedir(dir);
+}
 //Funcio recursiva per recorre cansons en
 char* findSongInDirectory(const char *directory, const char *song_name) {
     DIR *dir;
@@ -16,6 +57,7 @@ char* findSongInDirectory(const char *directory, const char *song_name) {
     char *path = NULL;
     char *found_path = NULL;
 
+    printf("Fucking directory: %s",directory);
     dir = opendir(directory);
     if (dir == NULL) {
         perror("No se pudo abrir el directorio");
@@ -175,4 +217,39 @@ int ensureUserDirectoryExists(const char *baseDir, const char *userName) {
 
     free(fullPath);
     return 0; // directori ja existeix, es guardara sense crear un d nou
+}
+
+void initializePathList(PathList *pathList, size_t initialCapacity) {
+    pathList->paths = (char **)malloc(initialCapacity * sizeof(char *));
+    pathList->songs = (char **)malloc(initialCapacity * sizeof(char *));
+
+    pathList->size = 0;
+    pathList->capacity = initialCapacity;
+}
+
+// Agregar un path a la lista
+void addToPathList(PathList *pathList, const char *path,const char *song) {
+    if (pathList->size == pathList->capacity) {
+        pathList->capacity *= 2;
+        pathList->paths = (char **)realloc(pathList->paths, pathList->capacity * sizeof(char *));
+        pathList->songs = (char **)realloc(pathList->songs, pathList->capacity * sizeof(char *));
+
+    }
+    pathList->paths[pathList->size] = my_strdup(path);
+    pathList->songs[pathList->size++] = my_strdup(song);
+
+}
+
+// Liberar la memoria utilizada por la lista de paths
+void freePathList(PathList *pathList) {
+    for (size_t i = 0; i < pathList->size; ++i) {
+        free(pathList->paths[i]);
+        free(pathList->songs[i]);
+
+    }
+    free(pathList->paths);
+    free(pathList->songs);
+
+    pathList->size = 0;
+    pathList->capacity = 0;
 }

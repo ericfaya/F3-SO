@@ -242,15 +242,9 @@ void enviarAcknowledge(int newsock,ssize_t bytes_read/*,int errorSocketOrNot*/){
     return info;
 }
 
-int downloadSong(int socket,Frame *incoming_frame) {
-    char *path_found=NULL;//char path_found[PATH_MAX];
-    char *song_name = incoming_frame->data; 
-    char *buffer;
-    asprintf(&buffer,"New request – %s wants to download %s\n Sending %s to %s\n\n", incoming_frame->data,song_name,song_name,incoming_frame->data);  
-    write(STDOUT_FILENO, buffer, strlen(buffer));   
-    free(buffer);
-
-    path_found = findSongInDirectory("Files/floyd", song_name);
+int downloadSong(int socket,char *path_found,char *song_name) {
+    printf("'%s' song fucking name ",song_name);
+        printf("'%s' path fucking found ",path_found);
 
     if (path_found != NULL) {
         int idNumRandom = 0 + rand() % 999;
@@ -263,8 +257,6 @@ int downloadSong(int socket,Frame *incoming_frame) {
             free(path_found);
             return -1;
         }
-
-
        
 
         if (pthread_create(&fileTransferThread, NULL, sendFileData, transferInfo) != 0) {
@@ -313,9 +305,50 @@ int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrN
         free(buffer);
         sendPlayListResponse(*newsock);
     }
+    
     else if (strcmp(incoming_frame->header, "DOWNLOAD_SONG") == 0) //TODO    A total of 2 songs will be sent. AQUEST PRINTF,SA DE CONTAR EL NUMERO DE CANSONS O ALGO AIXI K SENVIEN
     {
-        return downloadSong(*newsock,incoming_frame);
+        write(1,"Hola1",sizeof("Hola1"));
+        char *path_found=NULL;//char path_found[PATH_MAX];
+        char *song_name = incoming_frame->data; 
+        char *buffer;
+        write(1,"Hola2",sizeof("Hola1"));
+
+        asprintf(&buffer,"New request – %s wants to download %s\n Sending %s to %s\n\n", incoming_frame->data,song_name,song_name,incoming_frame->data);  
+        write(STDOUT_FILENO, buffer, strlen(buffer));   
+        free(buffer);
+        write(1,"Hola3",sizeof("Hola1"));
+
+        printf("'%s' song fucking name ",song_name);
+        path_found = findSongInDirectory("Files/floyd", song_name);
+        printf("'%s' path fucking found ",path_found);
+
+        return downloadSong(*newsock,path_found,song_name);
+    }
+    else if (strcmp(incoming_frame->header, "DOWNLOAD_LIST") == 0) //TODO    A total of 2 songs will be sent. AQUEST PRINTF,SA DE CONTAR EL NUMERO DE CANSONS O ALGO AIXI K SENVIEN
+    {
+        char *path_prefix = "Files/floyd/";
+        char *full_path = malloc(strlen(path_prefix) + strlen(incoming_frame->data) + 1);
+
+        if (full_path != NULL) {
+            strcpy(full_path, path_prefix);
+            strcat(full_path, incoming_frame->data);
+
+            PathList resultList;
+            initializePathList(&resultList, 1);
+
+            findSongsInList(full_path, &resultList);
+            for (size_t i = 0; i < resultList.size; ++i) {
+               // printf("Canción encontrada: %s i ssong name es el fucking retartinfg: '%s'\n", resultList.paths[i],resultList.songs[i]);
+                //char *song_name =
+                downloadSong(*newsock,resultList.paths[i],resultList.songs[i]);
+            }
+            freePathList(&resultList);
+       
+            free(full_path);
+        }
+        
+       // return downloadSong(*newsock,incoming_frame);
     }
     
     else if (strcmp(incoming_frame->header, "CHECK_OK") == 0 || strcmp(incoming_frame->header, "CHECK_KO]") == 0)// NNNNNNNNNNNNNNNNNNNNNNEEEEEEEEEEEEEEEEEEEEEEEEWWWWWWWWWWWWWWWWWWWWWWW
@@ -338,6 +371,7 @@ int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrN
     
     return 0;
 }
+
 void *clientHandler(void *args) {
     ThreadArgs *threadArgs = (ThreadArgs *)args;
     int clientSocket = threadArgs->socket;

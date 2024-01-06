@@ -284,7 +284,7 @@ void createBinaryFile(Frame *frame, FileInfo *fileInfo) {
 
     //construim ruta del arxiu
     char *songPath;
-    asprintf(&songPath, "%s/%s/%s.mp3", baseDir, bowmaneta->fullName, fileInfo->fileName);
+    asprintf(&songPath, "%s/%s/%s", baseDir, bowmaneta->fullName, fileInfo->fileName);
 
     fileInfo->songPath = songPath;
 
@@ -475,15 +475,23 @@ void listPlaylists() {
     send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
 }
 
-void download( char *commandInput) {
-        
+void download( char *commandInput,char *songsOrPlaylist) {
+    char *header;   
+    if(strcasecmp(songsOrPlaylist,"SONGS") == 0){ //TODO F3
+        header = "DOWNLOAD_SONG";
+    }
+    else if(strcasecmp(songsOrPlaylist,"PLAYLIST") == 0){
+        header = "DOWNLOAD_LIST";
+    }
+
     char *song_name = commandInput + strlen("DOWNLOAD ");
     if (strlen(song_name) == 0) {
         printF("No song name provided\n");
         return;
     }
+
     char frame_buffer[FRAME_SIZE] = {0};
-    fillFrame(frame_buffer, 0x03, "DOWNLOAD_SONG", song_name);
+    fillFrame(frame_buffer, 0x03, header, song_name);
     send(sockfd_poole, frame_buffer, FRAME_SIZE, 0);
     
 }
@@ -603,8 +611,19 @@ int controleCommands(char *whichCommand, int *connectedOrNot) {
                 }
             }
             if(strcasecmp(whichCommand1,"DOWNLOAD") == 0){ //TODO F3
-                download( whichCommand);
-                flag=1; 
+                whichCommand2=strtok(NULL, &delimiter);//Si li fiquem NULL començara la segona busqueda per on es va quedar cuan es va cridar per primer cop strtok
+                if(whichCommand2 != NULL){
+                    char *dot = strstr(whichCommand2, ".mp3");
+                    if (dot && strcmp(dot, ".mp3") == 0) {
+                        write(1,"La command conte command mp3",sizeof("La command conte command mp3"));
+                        download(whichCommand,"SONGS");
+                        flag=1; 
+                    }
+                    else{
+                        download(whichCommand, "PLAYLIST");
+                        flag=1; 
+                    }
+                }
             }
             if(strcasecmp("CHECK",whichCommand1) == 0){//TODO F3
                 whichCommand2=strtok(NULL, &delimiter);//Si li fiquem NULL començara la segona busqueda per on es va quedar cuan es va cridar per primer cop strtok

@@ -68,7 +68,7 @@ typedef struct SongNode {
 void freeMemory();
 void printInfo(Bowman* bowmaneta);
 void connectDiscovery(char *tokens[]);
-void download(char *commandInput) ;
+void download(char *songsOrPlaylist,char *commandInput);
 void listSongs();
 void listPlaylists();
 void checkDownload(int *connectedOrNot);

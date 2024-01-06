@@ -45,7 +45,7 @@ void findSongsInList(const char *directory, PathList *resultList) {
                 addToPathList(resultList, path,entry->d_name);
             }
         }
-        free(path);
+        //free(path);
     }
 
     closedir(dir);
@@ -236,8 +236,8 @@ void addToPathList(PathList *pathList, const char *path,const char *song) {
 
     }
     pathList->paths[pathList->size] = my_strdup(path);
-    pathList->songs[pathList->size++] = my_strdup(song);
-
+    pathList->songs[pathList->size] = my_strdup(song);
+    pathList->size++;
 }
 
 // Liberar la memoria utilizada por la lista de paths

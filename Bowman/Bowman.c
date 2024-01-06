@@ -265,7 +265,10 @@ void *downloadSongs(void *arg) {
         }
         free(calculated_md5);
     }
+    printF("BYE THREAD download  song\n\n");
 
+    pthread_cancel(pthread_self());
+    pthread_detach(pthread_self());
     return NULL;
 }
 void createBinaryFile(Frame *frame, FileInfo *fileInfo) {
@@ -285,6 +288,7 @@ void createBinaryFile(Frame *frame, FileInfo *fileInfo) {
     //construim ruta del arxiu
     char *songPath;
     asprintf(&songPath, "%s/%s/%s", baseDir, bowmaneta->fullName, fileInfo->fileName);
+    //asprintf(&songPath, "%s/%s/%s.mp3", baseDir, bowmaneta->fullName, fileInfo->fileName);
 
     fileInfo->songPath = songPath;
 
@@ -339,10 +343,10 @@ void *socketListener(void *arg) {
     int mq_id = args->mq_id;
     int checkOrClear = args->newCommand;
     int jaHoHaFet=0;
-
+    int responseDone=1;
     FileInfo *fileInfo = malloc(sizeof(FileInfo));
     fileInfo->id_queue = mq_id;
-    while (tocaTancar==1) {
+    while (tocaTancar==1 && responseDone==1 ) {
         usleep(2000);
 
         Frame frame;
@@ -358,12 +362,16 @@ void *socketListener(void *arg) {
             printAllSongs();
  
             jaHoHaFet=1;
+            responseDone = 0;
+
         }
 
         if(checkOrClear == 3 && jaHoHaFet == 0){//clear
             printAllSongs();
             removeAllSongs();
             jaHoHaFet = 1;
+            responseDone = 0;
+
         }
       
         ssize_t  bytes_read=receive_frame(sockfd_poole, &frame) ;//receive_frame(sockfd_poole, &frame) < 0
@@ -375,8 +383,11 @@ void *socketListener(void *arg) {
         
         if (strcmp(frame.header, "SONGS_RESPONSE") == 0) {
             processSongsResponse(&frame);
+            responseDone = 0;
         } else if (strcmp(frame.header, "PLAYLISTS_RESPONSE") == 0) {
             processPlaylistsResponse(&frame);
+            responseDone = 0;
+
         } else if (strcmp(frame.header, "NEW_FILE") == 0) {
             incrementBustiaToCheckDownload++;
             fileInfo->id_bustiaToCheck=incrementBustiaToCheckDownload;
@@ -398,12 +409,15 @@ void *socketListener(void *arg) {
         free(frame.header);
         free(frame.data);
     }
+
     free(fileInfo->fileName);
     free(fileInfo->md5sum);
     free(fileInfo->songPath);        
     free(fileInfo);
-       
-  
+    printF("BYEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE THREAD SOCKET LISTENER JAMBELE\n\n");
+
+    pthread_cancel(pthread_self());
+    pthread_detach(pthread_self());
     return NULL;
 }
 
@@ -694,7 +708,7 @@ int main(int argc, char *argv[]) {
 
         int newCommand=controleCommands(command, &connectedOrNot);
 
-        if(newCommand>=1 && connectedOrNot==1){
+        if(newCommand >= 1 && connectedOrNot == 1){
             ThreadArgs *threadArgs = malloc(sizeof(ThreadArgs));
             if (threadArgs == NULL) { // Handle the case where malloc fails to allocate memory
                 perror("Error allocating memory for threadArgs");

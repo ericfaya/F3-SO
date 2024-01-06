@@ -202,6 +202,11 @@ void *sendFileData(void *arg) {
 
     // Free the memory for transferInfo
     free(info);
+    printF("BYEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE THREAD DOWNLOAD Songs JAMBELE\n\n");
+
+    pthread_cancel(pthread_self());
+    pthread_detach(pthread_self());
+
     return NULL;
 }
 
@@ -308,20 +313,17 @@ int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrN
     
     else if (strcmp(incoming_frame->header, "DOWNLOAD_SONG") == 0) //TODO    A total of 2 songs will be sent. AQUEST PRINTF,SA DE CONTAR EL NUMERO DE CANSONS O ALGO AIXI K SENVIEN
     {
-        write(1,"Hola1",sizeof("Hola1"));
         char *path_found=NULL;//char path_found[PATH_MAX];
         char *song_name = incoming_frame->data; 
         char *buffer;
-        write(1,"Hola2",sizeof("Hola1"));
 
         asprintf(&buffer,"New request – %s wants to download %s\n Sending %s to %s\n\n", incoming_frame->data,song_name,song_name,incoming_frame->data);  
         write(STDOUT_FILENO, buffer, strlen(buffer));   
         free(buffer);
-        write(1,"Hola3",sizeof("Hola1"));
 
-        printf("'%s' song fucking name ",song_name);
+        //printf("'%s' song fucking name ",song_name);
         path_found = findSongInDirectory("Files/floyd", song_name);
-        printf("'%s' path fucking found ",path_found);
+        //printf("'%s' path fucking found ",path_found);
 
         return downloadSong(*newsock,path_found,song_name);
     }
@@ -339,7 +341,7 @@ int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrN
 
             findSongsInList(full_path, &resultList);
             for (size_t i = 0; i < resultList.size; ++i) {
-               // printf("Canción encontrada: %s i ssong name es el fucking retartinfg: '%s'\n", resultList.paths[i],resultList.songs[i]);
+               // printf("Canción encontrada: %s i song name es el fucking retartinfg: '%s'\n", resultList.paths[i],resultList.songs[i]);
                 //char *song_name =
                 downloadSong(*newsock,resultList.paths[i],resultList.songs[i]);
             }
@@ -397,6 +399,11 @@ void *clientHandler(void *args) {
         free(incoming_frame.data);
     }
     //close(clientSocket);
+    printF("BYEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE THREAD CLIENT HANDLER\n\n"); //HO fa be
+
+    pthread_cancel(pthread_self());
+    pthread_detach(pthread_self());
+
     return NULL;
     //pthread_exit(NULL);
 }

@@ -189,6 +189,7 @@ void *sendFileData(void *arg) {
     // Free the memory for transferInfo
     free(info);
     pthread_mutex_lock(&clientrada_sockets_mutex);
+    printf("%s, focker header",info->header);
     if(strcmp("DOWNLOAD_LIST",info->header) == 0){//TODO F3
         playlistFinshed++;
     }
@@ -342,6 +343,7 @@ int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrN
             for (size_t i = 0; i < resultList.size; ++i) {
                 downloadSong(*newsock,resultList.paths[i],resultList.songs[i],"DOWNLOAD_LIST");
             }
+            printf("%ld , jambo %ld\n",resultList.size,playlistFinshed);
             if(resultList.size == playlistFinshed){   
                 pthread_mutex_lock(&clientrada_sockets_mutex);
                 playlistFinshed = 0;//Avisar de que ha acabat una canço
@@ -366,6 +368,8 @@ int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrN
         write(STDOUT_FILENO, buffer, strlen(buffer));   
         free(buffer);    
            if(downloadFinshed != 0){   
+                        printf("%d , dieli \n",downloadFinshed);
+
             pthread_mutex_lock(&clientrada_sockets_mutex);
             downloadFinshed = 0;//Avisar de que ha acabat una canço
             pthread_mutex_unlock(&clientrada_sockets_mutex);            

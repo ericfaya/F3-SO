@@ -57,7 +57,7 @@ char* findSongInDirectory(const char *directory, const char *song_name) {
     char *path = NULL;
     char *found_path = NULL;
 
-    printf("Fucking directory: %s",directory);
+    //printf("Fucking directory: %s",directory);
     dir = opendir(directory);
     if (dir == NULL) {
         perror("No se pudo abrir el directorio");

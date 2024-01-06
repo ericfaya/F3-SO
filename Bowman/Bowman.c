@@ -791,7 +791,7 @@ int main(int argc, char *argv[]) {
     SEM_init(&sem, 0);
     while (tocaTancar==1) {    
         write(1, "\n$", 3);
-
+        
         command = read_until(STDIN_FILENO, '\n');         /* 1R THREAD ESCOLTAR DE LA TERMINAL/ //canvi fet que deien els becaris*/
         if (command == NULL) {// Leer el comando del usuario
             free(command); 

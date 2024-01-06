@@ -47,7 +47,7 @@ typedef struct {
     int id_queue;
     int id_bustia;
     int id_bustiaToCheck;
- 
+    int sockfd_poole;
 } FileInfo;
 
 typedef struct {

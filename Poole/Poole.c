@@ -6,28 +6,14 @@ int numUsuaris;//Hem de saber cuantradas usuaris estan conectats en el servidor(
 int sockfd_poole_server;
 int tocaTancar=1;
 Frame incoming_frame;
-pthread_t fileTransferThread;
 pthread_t thread_id;
+int downloadFinshed=0;
+size_t playlistFinshed=0;
+
 
 pthread_mutex_t clientrada_sockets_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex per larray
 ClientNode* head = NULL;
-     /*    semaphore sem;
-
-    key_t key2 = IPC_PRIVATE +1; // Use IPC_PRIVATE to generate a unique key
-    if (key2 == -1) {
-        perror("Error generating key");
-        fprintf(stderr, "Additional information: Something went wrong with ftok.\n");
-        //exit(EXIT_FAILURE);
-    }
-        printf("Generated key: %d\n", key2);
-
-    SEM_constructor_with_name(&sem, key2);
-    printf("Semaphore value %d",sem.shmid);
-
-    SEM_init(&sem, 0);
-    printf("Semaphore value %d",sem.shmid);
-       // SEM_signal(&sem);
-      //  SEM_wait(&sem);*/
+   
 void removeAllClients() {
     pthread_mutex_lock(&clientrada_sockets_mutex);
 
@@ -48,9 +34,9 @@ void removeAllClients() {
 void kctrlc(){ 
     tocaTancar = 0;
 
-    pthread_cancel(fileTransferThread);
-    pthread_join(fileTransferThread, NULL);
-    pthread_detach(fileTransferThread);
+    //pthread_cancel(fileTransferThread);
+    //pthread_join(fileTransferThread, NULL);
+    //pthread_detach(fileTransferThread);
 
     pthread_cancel(thread_id);
     pthread_join(thread_id, NULL);
@@ -202,6 +188,15 @@ void *sendFileData(void *arg) {
 
     // Free the memory for transferInfo
     free(info);
+    pthread_mutex_lock(&clientrada_sockets_mutex);
+    if(strcmp("DOWNLOAD_LIST",info->header) == 0){//TODO F3
+        playlistFinshed++;
+    }
+    else if(strcmp("DOWNLOAD_SONG",info->header) == 0){//TODO F3
+        downloadFinshed++;//Avisar de que ha acabat una canço
+    }
+    pthread_mutex_unlock(&clientrada_sockets_mutex);
+
     printF("BYEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE THREAD DOWNLOAD Songs JAMBELE\n\n");
 
     pthread_cancel(pthread_self());
@@ -224,7 +219,7 @@ void enviarAcknowledge(int newsock,ssize_t bytes_read/*,int errorSocketOrNot*/){
     send(newsock, frame_buffer, 256, 0);//Bowman send poole
 }
 
-    FileTransferInfo *initializeFileTransferInfo(const char *filePath, const char *songName, int socket, int id) {
+    FileTransferInfo *initializeFileTransferInfo(const char *filePath, const char *songName, int socket, int id,const char *header) {
     FileTransferInfo *info = malloc(sizeof(FileTransferInfo));
     if (info == NULL) {
         perror("Error allocating memory for file transfer info");
@@ -233,28 +228,30 @@ void enviarAcknowledge(int newsock,ssize_t bytes_read/*,int errorSocketOrNot*/){
 
     info->filePath = strdup(filePath);
     info->song_name = strdup(songName);
-    info->socket = socket;
-    info->id = id;
+    info->header = strdup(header);
 
-    if (info->filePath == NULL || info->song_name == NULL) {
+
+    if (info->filePath == NULL || info->song_name == NULL || info->header == NULL) {
         perror("Error allocating memory for filePath or song_name");
         free(info->filePath);
         free(info->song_name);
+        free(info->header);
+
         free(info);
         return NULL;
     }
+    info->socket = socket;
+    info->id = id;
 
     return info;
 }
 
-int downloadSong(int socket,char *path_found,char *song_name) {
-    printf("'%s' song fucking name ",song_name);
-        printf("'%s' path fucking found ",path_found);
+int downloadSong(int socket,char *path_found,char *song_name,const char *header) {
 
     if (path_found != NULL) {
         int idNumRandom = 0 + rand() % 999;
 
-        FileTransferInfo *transferInfo = initializeFileTransferInfo(path_found, song_name, socket, idNumRandom);
+        FileTransferInfo *transferInfo = initializeFileTransferInfo(path_found, song_name, socket, idNumRandom,header);
         if (transferInfo == NULL) {
             // Handle error
             perror("Error allocating memory for file transfer info");
@@ -263,16 +260,20 @@ int downloadSong(int socket,char *path_found,char *song_name) {
             return -1;
         }
        
+        pthread_t fileTransferThread;
 
         if (pthread_create(&fileTransferThread, NULL, sendFileData, transferInfo) != 0) {
             perror("Error creating file transfer thread");
             // Manejar error
             free(transferInfo->filePath);
             free(transferInfo->song_name);
+            free(transferInfo->header);
             free(transferInfo);
+            free(path_found);
             return -1;
         }
-                free(path_found);
+
+        //free(path_found);
 
         //free(song_name);
         
@@ -281,11 +282,7 @@ int downloadSong(int socket,char *path_found,char *song_name) {
 }
 
 int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrNot*/, Frame *incoming_frame) {
-    /*if (errorSocketOrNot < 0) {
-        perror("Error en handleBowmanConnection");
-        close(*newsock);
-        return -1;
-    }*/
+  
     if (strcmp(incoming_frame->header, "NEW_BOWMAN") == 0) { 
         char *buffer;
         asprintf(&buffer,"New user connected: %s.\n\n...", incoming_frame->data);  
@@ -324,8 +321,10 @@ int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrN
         //printf("'%s' song fucking name ",song_name);
         path_found = findSongInDirectory("Files/floyd", song_name);
         //printf("'%s' path fucking found ",path_found);
-
-        return downloadSong(*newsock,path_found,song_name);
+        downloadSong(*newsock,path_found,song_name,"DOWNLOAD_SONG");
+        
+     
+         
     }
     else if (strcmp(incoming_frame->header, "DOWNLOAD_LIST") == 0) //TODO    A total of 2 songs will be sent. AQUEST PRINTF,SA DE CONTAR EL NUMERO DE CANSONS O ALGO AIXI K SENVIEN
     {
@@ -341,13 +340,19 @@ int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrN
 
             findSongsInList(full_path, &resultList);
             for (size_t i = 0; i < resultList.size; ++i) {
-               // printf("Canción encontrada: %s i song name es el fucking retartinfg: '%s'\n", resultList.paths[i],resultList.songs[i]);
-                //char *song_name =
-                downloadSong(*newsock,resultList.paths[i],resultList.songs[i]);
+                downloadSong(*newsock,resultList.paths[i],resultList.songs[i],"DOWNLOAD_LIST");
+            }
+            if(resultList.size == playlistFinshed){   
+                pthread_mutex_lock(&clientrada_sockets_mutex);
+                playlistFinshed = 0;//Avisar de que ha acabat una canço
+                pthread_mutex_unlock(&clientrada_sockets_mutex);            
+                char frame_buffer[FRAME_SIZE];        // Enviar la trama ACK INVENTADA
+                fillFrame(frame_buffer, 0x08, "FINISH", "");
+                send(*newsock, frame_buffer, FRAME_SIZE, 0); //aquest l'envia bé
             }
             freePathList(&resultList);
-       
             free(full_path);
+           
         }
         
        // return downloadSong(*newsock,incoming_frame);
@@ -360,9 +365,15 @@ int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrN
         asprintf(&buffer,"Result MD5SUM– %s\n", incoming_frame->header);  
         write(STDOUT_FILENO, buffer, strlen(buffer));   
         free(buffer);    
-        char frame_buffer[FRAME_SIZE];        // Enviar la trama ACK INVENTADA
-        fillFrame(frame_buffer, 0x08, "FINISH", "");
-        send(*newsock, frame_buffer, FRAME_SIZE, 0); //aquest l'envia bé
+           if(downloadFinshed != 0){   
+            pthread_mutex_lock(&clientrada_sockets_mutex);
+            downloadFinshed = 0;//Avisar de que ha acabat una canço
+            pthread_mutex_unlock(&clientrada_sockets_mutex);            
+            char frame_buffer[FRAME_SIZE];        // Enviar la trama ACK INVENTADA
+            fillFrame(frame_buffer, 0x08, "FINISH", "");
+            send(*newsock, frame_buffer, FRAME_SIZE, 0); //aquest l'envia bé
+        }
+        
     }
     else if (strcmp(incoming_frame->header, "EXIT") == 0)
     {
@@ -394,6 +405,7 @@ void *clientHandler(void *args) {
                 free(incoming_frame.data);
                 break;
             }
+           
         }
         free(incoming_frame.header);
         free(incoming_frame.data);

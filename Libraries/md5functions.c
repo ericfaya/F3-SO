@@ -19,7 +19,7 @@ char *calculateMD5(const char *filename) {
 
     pid_t pid = fork();
     if (pid == -1) {
-        perror("fork");
+        perror("fork: error");
         close(fd);
         close(pipefd[0]);
         close(pipefd[1]);
@@ -35,7 +35,7 @@ char *calculateMD5(const char *filename) {
         close(pipefd[1]);
         close(fd);
         execlp("md5sum", "md5sum", filename, NULL);
-        perror("execlp"); // 
+        perror("execlp");
         exit(EXIT_FAILURE);
     }
 
@@ -52,8 +52,13 @@ char *calculateMD5(const char *filename) {
     }
     buffer[bytes_read] = '\0'; 
 
-    waitpid(pid, NULL, 0); // esperem fill
+    int status;
+    waitpid(pid, &status, 0); // esperem fill
     close(pipefd[0]);
+
+    if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+        return NULL;
+    }
 
     char *md5sum = (char *)malloc(33);
     if (sscanf(buffer, "%32s", md5sum) != 1) {
@@ -64,6 +69,7 @@ char *calculateMD5(const char *filename) {
 
     return md5sum;
 }
+
 
 int verifyMD5SUM(const char *file_path, const char *expected_md5) {
     char *actual_md5 = calculateMD5(file_path);

@@ -22,14 +22,11 @@
 #include <limits.h>
 #include <sys/param.h>
 
-
 #include "frame.h"
 #include "md5functions.h"
 #include "dirfunctions.h"
 
-
 #define printF(x) write(1, x, strlen(x))
-
 
 typedef struct
 {
@@ -50,16 +47,13 @@ typedef struct {
     char *filePath;   // Flexible array member
     char *song_name;  // Flexible array member
     int id;
+    char *header;
 } FileTransferInfo;
-
-
 
 typedef struct ClientNode {
     int sockfd;
     struct ClientNode* next;
 } ClientNode;
-
-
 
 int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrNot*/, Frame *incoming_frame);
 void enviarAcknowledge(int newsock,ssize_t bytes_read/*,int errorSocketOrNot*/);

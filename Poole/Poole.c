@@ -10,7 +10,7 @@ pthread_t thread_id;
 int downloadFinshed=0;
 size_t playlistFinshed=0;
 semaphore sem;
-
+PathList resultList;
 
 pthread_mutex_t clientrada_sockets_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex per larray
 ClientNode* head = NULL;
@@ -34,6 +34,7 @@ void removeAllClients() {
 }
 void kctrlc(){ 
     tocaTancar = 0;
+            freePathList(&resultList);
 
     //pthread_cancel(fileTransferThread);
     //pthread_join(fileTransferThread, NULL);
@@ -226,7 +227,7 @@ void enviarAcknowledge(int newsock,ssize_t bytes_read/*,int errorSocketOrNot*/){
     send(newsock, frame_buffer, 256, 0);//Bowman send poole
 }
 
-    FileTransferInfo *initializeFileTransferInfo(const char *filePath, const char *songName, int socket, int id,const char *header) {
+FileTransferInfo *initializeFileTransferInfo(const char *filePath, const char *songName, int socket, int id,const char *header) {
     FileTransferInfo *info = malloc(sizeof(FileTransferInfo));
     if (info == NULL) {
         perror("Error allocating memory for file transfer info");
@@ -234,6 +235,10 @@ void enviarAcknowledge(int newsock,ssize_t bytes_read/*,int errorSocketOrNot*/){
     }
 
     info->filePath = strdup(filePath);
+    if (info->filePath == NULL) {
+        perror("Error allocating memory for filePath");
+        // Handle the error (e.g., return an error code or exit the program)
+    }
     info->song_name = strdup(songName);
     info->header = strdup(header);
 
@@ -263,7 +268,7 @@ int downloadSong(int socket,char *path_found,char *song_name,const char *header)
             // Handle error
             perror("Error allocating memory for file transfer info");
 
-            free(path_found);
+            //free(path_found);
             return -1;
         }
        
@@ -407,7 +412,7 @@ int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrN
             send(*newsock, frame_buffer, FRAME_SIZE, 0); //aquest l'envia bé
         }
         printf("%ld , jambo %ld\n",resultList->size,playlistFinshed);
-        if(resultList->size == playlistFinshed){   
+        if(resultList->size == playlistFinshed && resultList->size != 0){   
             pthread_mutex_lock(&clientrada_sockets_mutex);
             playlistFinshed = 0;//Avisar de que ha acabat una canço
             pthread_mutex_unlock(&clientrada_sockets_mutex);            
@@ -436,7 +441,7 @@ void *clientHandler(void *args) {
     int clientSocket = threadArgs->socket;
     int fd_write = threadArgs->fd_write;
     free(threadArgs);
-    PathList resultList;
+   
     initializePathList(&resultList, 1);
     while (tocaTancar==1) {
        // Frame incoming_frame;

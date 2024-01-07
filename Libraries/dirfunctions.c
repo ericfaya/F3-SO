@@ -3,9 +3,11 @@
 char* my_strdup(const char *s) {
     size_t len = strlen(s) + 1;
     char *dup = malloc(len);
-    if (dup != NULL) {
-        strcpy(dup, s);
+    if (dup == NULL) {
+        perror("Error allocating memory");
+        exit(EXIT_FAILURE);  // Or handle the failure appropriately
     }
+    strcpy(dup, s);
     return dup;
 }
 void findSongsInList(const char *directory, PathList *resultList) {

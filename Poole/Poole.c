@@ -174,7 +174,7 @@ void *sendFileData(void *arg) {
         fillFrame2(frame_buffer, 0x04, header, frame_buffer + 3 + header_len, frameDataSize);
 
         send(info->socket, frame_buffer, FRAME_SIZE, 0);
-        usleep(1000);
+        usleep(300);
 
         //printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", readSize, totalBytesSent);
         totalBytesSent += readSize;

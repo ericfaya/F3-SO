@@ -267,12 +267,25 @@ void processPlaylistsResponse(Frame *frame) {
 int writeBinaryFile(Frame incoming_frame,FileInfo *downloadInfo) {
 
     int idAndSeparatorLength = sizeof(int) + 1;
+    if (incoming_frame.data == NULL || downloadInfo->fd_song < 0) {
+        // Handle invalid pointers or file descriptor
+        return -1;
+    }   
+
     char *fileDataStart = incoming_frame.data + idAndSeparatorLength;
     ssize_t data_length = FRAME_SIZE - 3 - incoming_frame.header_length - idAndSeparatorLength;
+    
+    if (data_length < 0) {
+        // Handle invalid data length
+        return -1;
+    }
+    
     if (downloadInfo->totalBytesReceived + data_length > downloadInfo->fileSize) {
         data_length = downloadInfo->fileSize - downloadInfo->totalBytesReceived;
     }
+
     ssize_t bytes_written = write(downloadInfo->fd_song, fileDataStart, data_length);
+    
     if (bytes_written == -1) {
         printF("Error writing to file");
         perror("Error writing to file");
@@ -280,12 +293,8 @@ int writeBinaryFile(Frame incoming_frame,FileInfo *downloadInfo) {
         free(incoming_frame.data);
         return -1;
     }
- //pthread_mutex_lock(&songentrada_sockets_mutex);
     SEM_signal(&sem);
-   // pthread_mutex_unlock(&songentrada_sockets_mutex);
 
-
-    //printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", bytes_written, downloadInfo->totalBytesReceived);
     downloadInfo->totalBytesReceived += bytes_written;
     return 0;
 }
@@ -391,7 +400,6 @@ void messageQueue(Frame *frame,int mq_id,int id_bustia) {
     msg.frame = *frame;
     msg.mtype = id_bustia;
 
-    //printf("Envio per la cua %d + id bustia : %ld \n\n", mq_id, msg.mtype);
     if( tocaTancar == 1){
         if (msgsnd(mq_id, &msg, sizeof(MessageQueue)- sizeof(long) , 0) == -1) {    //if (msgsnd(mq_id, &msg, sizeof(Frame) - sizeof(long), 0) == -1) {
             perror("Error al enviar el mensaje");
@@ -443,7 +451,7 @@ void *socketListener(void *arg) {
     FileInfo *fileInfo = malloc(sizeof(FileInfo));
     fileInfo->id_queue = mq_id;
     while (tocaTancar==1 && responseDone==1 ) {
-        usleep(2000);
+        usleep(200);
 
         //Frame frame;
         Frame *frame = initializeFrame();
@@ -512,6 +520,7 @@ void *socketListener(void *arg) {
 
             processFileResponse(fileInfo); 
             //usleep(100000);
+                printf("Envio per la cua %d + id bustia : %d \n\n", mq_id, id_bustia2);
 
 
        }
@@ -535,18 +544,18 @@ void *socketListener(void *arg) {
         //free(frame.header);
         //free(frame.data);
     }
-    printf("Hola5");
+    //printf("Hola5");
 
     if(responseDone==2){
         free(fileInfo->fileName);
-        printf("Hola3");
+        //printf("Hola3");
 
         free(fileInfo->md5sum);
-        printf("Hola4   ");
+        //printf("Hola4   ");
 
         free(fileInfo->songPath); 
     }       
-    printf("Hola6");
+    //printf("Hola6");
 
     free(fileInfo);
     printF("BYEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE THREAD SOCKET LISTENER JAMBELE\n\n");
@@ -701,6 +710,7 @@ void logout(int haTancatSocketPoole){
 
     Frame frameAcknoledge;
     printaAcknowledge(info,&frameAcknoledge);
+    SEM_destructor(&sem);
 
     if(errorSocketOrNot!=-1 ){
         if(strcmp(frameAcknoledge.header,"[CON_OK]")){
@@ -864,7 +874,6 @@ int main(int argc, char *argv[]) {
         free(command); 
     }
     logout(0);
-    SEM_destructor(&sem);
     //msgctl (mq_id_queue, IPC_RMID, (struct msqid_ds *)NULL);    //Que algun dels dos procesos elimini la bustia
     return 0;
 }

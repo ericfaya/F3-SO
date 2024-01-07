@@ -16,6 +16,7 @@ semaphore sem;
 pthread_mutex_t songentrada_sockets_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex per larray
 SongNode* head = NULL;
 int incrementBustiaToCheckDownload = 0;
+int isDownloading=0;
 
 void printBarraProgres(FileInfo *fileInfo) {
     double percentComplete = (double)fileInfo->totalBytesReceived / fileInfo->fileSize * 100.0;
@@ -404,6 +405,30 @@ void messageQueue(Frame *frame,int mq_id,int id_bustia) {
     }
 }
 
+Frame* initializeFrame() {
+    Frame *frame = (Frame *)malloc(sizeof(Frame));
+    if (frame == NULL) {
+        perror("Error allocating memory for Frame");
+        return NULL;
+    }
+
+    // Initialize fields
+    frame->type = 0; // or any default value
+    frame->header_length = 0;
+    frame->header = NULL;
+    frame->data = NULL;
+
+    return frame;
+}
+
+// Function to free memory allocated for a Frame
+void freeFrame(Frame *frame) {
+    if (frame != NULL) {
+        free(frame->header);
+        free(frame->data);
+        free(frame);
+    }
+}
 void *socketListener(void *arg) {
     ThreadArgs *args = ( ThreadArgs *)arg;
     if (args == NULL) {
@@ -420,20 +445,28 @@ void *socketListener(void *arg) {
     while (tocaTancar==1 && responseDone==1 ) {
         usleep(2000);
 
-        Frame frame;
-       
+        //Frame frame;
+        Frame *frame = initializeFrame();
+        if (frame == NULL) {
+            // Handle initialization error
+            return NULL;
+        }
+
+
         if(checkOrClear == 2 && jaHoHaFet == 0){ //check
             char frame_buffer[FRAME_SIZE] = {0};
             fillFrame(frame_buffer,0x45,"JAMBO","HOLA JAMBO");
-            printaAcknowledge(frame_buffer,&frame);
+            printaAcknowledge(frame_buffer,frame);
             
             for(int i = 1;i <= incrementBustiaToCheckDownload;i++){ //implementem cua de missatges pel check;
-                messageQueue(&frame,mq_id,1000+i);      
+                messageQueue(frame,mq_id,1000+i);      
             }    
             printAllSongs();
  
             jaHoHaFet=1;
-            responseDone = 0;
+            if(isDownloading==0){
+                responseDone = 0;
+            }
 
         }
 
@@ -441,71 +474,79 @@ void *socketListener(void *arg) {
             printAllSongs();
             removeAllSongs();
             jaHoHaFet = 1;
-            responseDone = 0;
-
+            if(isDownloading==0){
+                responseDone = 0;
+            }
         }
       
-        ssize_t  bytes_read=receive_frame(sockfd_poole, &frame) ;//receive_frame(sockfd_poole, &frame) < 0
+        ssize_t  bytes_read=receive_frame(sockfd_poole, frame) ;//receive_frame(sockfd_poole, &frame) < 0
         if (bytes_read == -1 && tocaTancar==1) {
             printF("Error poole has been disconnected\n");
             logout(1);
             break;
         } 
         
-        if (strcmp(frame.header, "SONGS_RESPONSE") == 0) {
-            processSongsResponse(&frame);
-            responseDone = 0;
-        } else if (strcmp(frame.header, "PLAYLISTS_RESPONSE") == 0) {
-            processPlaylistsResponse(&frame);
-            responseDone = 0;
+        if (strcmp(frame->header, "SONGS_RESPONSE") == 0) {
+            processSongsResponse(frame);
+            if(isDownloading==0){
+                responseDone = 0;
+            }
+        } else if (strcmp(frame->header, "PLAYLISTS_RESPONSE") == 0) {
+            processPlaylistsResponse(frame);
+            if(isDownloading==0){
+                responseDone = 0;
+            }
 
-        } else if (strcmp(frame.header, "NEW_FILE") == 0) {
+        } else if (strcmp(frame->header, "NEW_FILE") == 0) {
             pthread_mutex_lock(&songentrada_sockets_mutex);
 
             incrementBustiaToCheckDownload++;
             pthread_mutex_unlock(&songentrada_sockets_mutex);
 
             fileInfo->id_bustiaToCheck=incrementBustiaToCheckDownload;
-            print_frame2(&frame);
-            int id_bustia2 = extractIdFromFrame2(&frame);
+            print_frame2(frame);
+            int id_bustia2 = extractIdFromFrame2(frame);
             fileInfo->id_bustia=id_bustia2;
             fileInfo->sockfd_poole=sockfd_poole;
-            createBinaryFile(&frame, fileInfo); 
+            createBinaryFile(frame, fileInfo); 
 
             processFileResponse(fileInfo); 
             //usleep(100000);
 
 
        }
-        else if (strcmp(frame.header, "FILE_DATA") == 0) {
-            int id_bustia = extractIdFromFrame(&frame);
-            messageQueue(&frame,mq_id,id_bustia);            //implementem cua de missatges per les cansons;
+        else if (strcmp(frame->header, "FILE_DATA") == 0) {
+            int id_bustia = extractIdFromFrame(frame);
+            messageQueue(frame,mq_id,id_bustia);            //implementem cua de missatges per les cansons;
           }
-        else if (strcmp(frame.header, "FINISH") == 0) {
+        else if (strcmp(frame->header, "FINISH") == 0) {
+            pthread_mutex_lock(&songentrada_sockets_mutex);
+
+            isDownloading=0;
+            pthread_mutex_unlock(&songentrada_sockets_mutex);
             write(1,"FINISH\n",sizeof("FINISH\n"));
-            print_frame2(&frame);
+            print_frame2(frame);
             write(1,"FINISH\n",sizeof("FINISH\n"));
             responseDone = 2;
 
         }
-        
-        //printf("Hola1");
-        free(frame.header);
-        free(frame.data);
-          //      printf("Hola2");
+        freeFrame(frame);
+
+        //free(frame.header);
+        //free(frame.data);
     }
-                            printf("Hola5");
+    printf("Hola5");
 
     if(responseDone==2){
         free(fileInfo->fileName);
-                        printf("Hola3");
+        printf("Hola3");
 
         free(fileInfo->md5sum);
-                        printf("Hola4   ");
+        printf("Hola4   ");
 
         free(fileInfo->songPath); 
     }       
-                            printf("Hola6");
+    printf("Hola6");
 
     free(fileInfo);
     printF("BYEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE THREAD SOCKET LISTENER JAMBELE\n\n");

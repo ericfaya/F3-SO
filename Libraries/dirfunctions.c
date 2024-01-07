@@ -45,9 +45,8 @@ void findSongsInList(const char *directory, PathList *resultList) {
                 addToPathList(resultList, path,entry->d_name);
             }
         }
-        //free(path);
+        free(path);
     }
-
     closedir(dir);
 }
 //Funcio recursiva per recorre cansons en

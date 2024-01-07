@@ -179,26 +179,31 @@ void *sendFileData(void *arg) {
         //printf("Received and wrote %zd bytes of data in this frame, total data received: %zd bytes\n", readSize, totalBytesSent);
         totalBytesSent += readSize;
     }
+    free(buffer);
+
     if (readSize == -1) {
         perror("Error reading from the file");
     }
-    free(buffer);
-    close(fd_file);
-    free(info->song_name);
-    free(info->filePath);
 
-    // Free the memory for transferInfo
-    free(info);
     pthread_mutex_lock(&clientrada_sockets_mutex);
     printf("%s, focker header",info->header);
     if(strcmp("DOWNLOAD_LIST",info->header) == 0){//TODO F3
+        printf("Incrementem en 1 el playlist finsihed: %ld\n",playlistFinshed);
         playlistFinshed++;
     }
     else if(strcmp("DOWNLOAD_SONG",info->header) == 0){//TODO F3
+        printf("Incrementem en 1 el download finsihed: %d\n",downloadFinshed);
         downloadFinshed++;//Avisar de que ha acabat una canço
     }
     pthread_mutex_unlock(&clientrada_sockets_mutex);
+    close(fd_file);
+    free(info->song_name);
+    free(info->filePath);
+    free(info->header);
 
+
+    // Free the memory for transferInfo
+    free(info);
     printF("BYEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE THREAD DOWNLOAD Songs JAMBELE\n\n");
 
     pthread_cancel(pthread_self());
@@ -263,6 +268,7 @@ int downloadSong(int socket,char *path_found,char *song_name,const char *header)
         }
        
         pthread_t fileTransferThread;
+                        printF("NEEEEEEEEEEEEEEEEEEEEEEEEEEEEW THREAD send  file data\n\n");
 
         if (pthread_create(&fileTransferThread, NULL, sendFileData, transferInfo) != 0) {
             perror("Error creating file transfer thread");
@@ -283,7 +289,7 @@ int downloadSong(int socket,char *path_found,char *song_name,const char *header)
     return 0;
 }
 
-int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrNot*/, Frame *incoming_frame, int fd_write) {
+int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrNot*/, Frame *incoming_frame, int fd_write, PathList *resultList) {
   
     if (strcmp(incoming_frame->header, "NEW_BOWMAN") == 0) { 
         char *buffer;
@@ -337,23 +343,14 @@ int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrN
             strcpy(full_path, path_prefix);
             strcat(full_path, incoming_frame->data);
 
-            PathList resultList;
-            initializePathList(&resultList, 1);
+           // PathList resultList;
+           // initializePathList(&resultList, 1);
 
-            findSongsInList(full_path, &resultList);
-            for (size_t i = 0; i < resultList.size; ++i) {
-                downloadSong(*newsock,resultList.paths[i],resultList.songs[i],"DOWNLOAD_LIST");
+            findSongsInList(full_path, resultList);
+            for (size_t i = 0; i < resultList->size; ++i) {
+                downloadSong(*newsock,resultList->paths[i],resultList->songs[i],"DOWNLOAD_LIST");
             }
-            printf("%ld , jambo %ld\n",resultList.size,playlistFinshed);
-            if(resultList.size == playlistFinshed){   
-                pthread_mutex_lock(&clientrada_sockets_mutex);
-                playlistFinshed = 0;//Avisar de que ha acabat una canço
-                pthread_mutex_unlock(&clientrada_sockets_mutex);            
-                char frame_buffer[FRAME_SIZE];        // Enviar la trama ACK INVENTADA
-                fillFrame(frame_buffer, 0x08, "FINISH", "");
-                send(*newsock, frame_buffer, FRAME_SIZE, 0); //aquest l'envia bé
-            }
-            freePathList(&resultList);
+          
             free(full_path);
            
         }
@@ -394,6 +391,32 @@ int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrN
             printf("Escrito en el pipe: %s\n", update_message);
         }
 
+
+        char *buffer;
+        asprintf(&buffer,"Result MD5SUM– %s\n", incoming_frame->header);  
+        write(STDOUT_FILENO, buffer, strlen(buffer));   
+        free(buffer);    
+        if(downloadFinshed != 0){   
+            printf("%d , dieli \n",downloadFinshed);
+
+            pthread_mutex_lock(&clientrada_sockets_mutex);
+            downloadFinshed = 0;//Avisar de que ha acabat una canço
+            pthread_mutex_unlock(&clientrada_sockets_mutex);            
+            char frame_buffer[FRAME_SIZE];        // Enviar la trama ACK INVENTADA
+            fillFrame(frame_buffer, 0x08, "FINISH", "");
+            send(*newsock, frame_buffer, FRAME_SIZE, 0); //aquest l'envia bé
+        }
+        printf("%ld , jambo %ld\n",resultList->size,playlistFinshed);
+        if(resultList->size == playlistFinshed){   
+            pthread_mutex_lock(&clientrada_sockets_mutex);
+            playlistFinshed = 0;//Avisar de que ha acabat una canço
+            pthread_mutex_unlock(&clientrada_sockets_mutex);            
+            char frame_buffer[FRAME_SIZE];        // Enviar la trama ACK INVENTADA
+            fillFrame(frame_buffer, 0x08, "FINISH", "");
+            send(*newsock, frame_buffer, FRAME_SIZE, 0); //aquest l'envia bé   
+            freePathList(resultList);
+        }
+
     
     } else if (strcmp(incoming_frame->header, "CHECK_KO") == 0) {
         
@@ -413,6 +436,8 @@ void *clientHandler(void *args) {
     int clientSocket = threadArgs->socket;
     int fd_write = threadArgs->fd_write;
     free(threadArgs);
+    PathList resultList;
+    initializePathList(&resultList, 1);
     while (tocaTancar==1) {
        // Frame incoming_frame;
       
@@ -423,7 +448,7 @@ void *clientHandler(void *args) {
             break;        
         }
         else{
-            int exitOrNot = handleBowmanConnection(&clientSocket,bytes_read/*, errorSocketOrNot*/, &incoming_frame, fd_write);
+            int exitOrNot = handleBowmanConnection(&clientSocket,bytes_read/*, errorSocketOrNot*/, &incoming_frame, fd_write,&resultList);
             if (exitOrNot == -1) {
                 free(incoming_frame.header);
                 free(incoming_frame.data);

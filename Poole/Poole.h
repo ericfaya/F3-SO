@@ -66,7 +66,7 @@ void *sendFileData(void *arg);
 void enviarAcknowledge(int newsock, ssize_t bytes_read);
 FileTransferInfo *initializeFileTransferInfo(const char *filePath, const char *songName, int socket, int id, const char *header);
 int downloadSong(int socket, char *path_found, char *song_name, const char *header);
-int handleBowmanConnection(int *newsock, ssize_t bytes_read, Frame *incoming_frame, int fd_write);
+int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrNot*/, Frame *incoming_frame, int fd_write, PathList *resultList);
 void *clientHandler(void *args);
 void connectToBowman(Poole *poolete, int fd_write);
 void procesoMonolit(int read_fd);

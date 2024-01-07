@@ -324,7 +324,7 @@ void *downloadSongs(void *arg) {
         if (calculated_md5 != NULL && strcmp(downloadInfo->md5sum, calculated_md5) == 0) {
             write(1,"MD5 verification successful\n",sizeof("MD5 verification successful\n"));
             addSong(downloadInfo);
-            fillFrame(frame_buffer,0x05,"CHECK_OK","");
+            fillFrame(frame_buffer, 0x05, "CHECK_OK", downloadInfo->fileName); //trama modificada
             close(downloadInfo->fd_song);
         } else {
             write(1,"MD5 verification failed\n",sizeof("MD5 verification failed\n"));
@@ -777,7 +777,6 @@ int main(int argc, char *argv[]) {
     key_t key = IPC_PRIVATE; // Use IPC_PRIVATE to generate a unique key
     if (key == -1) {
         perror("Error generating key");
-        fprintf(stderr, "Additional information: Something went wrong with ftok.\n");
         //exit(EXIT_FAILURE);
     }
         mq_id_queue=msgget(key, IPC_CREAT | 0666);
@@ -824,6 +823,7 @@ int main(int argc, char *argv[]) {
         free(command); 
     }
     logout(0);
+    SEM_destructor(&sem);
     //msgctl (mq_id_queue, IPC_RMID, (struct msqid_ds *)NULL);    //Que algun dels dos procesos elimini la bustia
     return 0;
 }

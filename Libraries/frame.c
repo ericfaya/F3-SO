@@ -132,7 +132,7 @@ void print_frame2(Frame *frame) {
 }
 
 void print_frame3(Frame *frame) {
-    printf ("\nENTRA PEL THREAD DOWNLOAD");
+    printf ("\n\nFRAME ACK CHECK\n\n");
     
     printf("Type: 0x%02X\n", frame->type);
     printf("Header Length: %u\n", frame->header_length); 

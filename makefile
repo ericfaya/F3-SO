@@ -32,7 +32,7 @@ bowman: $(FRAME_O) $(DIRFUNC_O) $(MD5FUNC_O) $(SEM_O) Bowman/Bowman.c Bowman/con
 
 # Poole compilation
 poole: $(FRAME_O) $(DIRFUNC_O) $(MD5FUNC_O) Poole/Poole.c Poole/config.c
-	$(CC) $(CFLAGS) -o $@ Poole/Poole.c Poole/config.c $(FRAME_O) $(DIRFUNC_O) $(MD5FUNC_O) $(LIBS) -I Poole -I Libraries
+	$(CC) $(CFLAGS) -o $@ Poole/Poole.c Poole/config.c $(FRAME_O) $(DIRFUNC_O) $(SEM_O) $(MD5FUNC_O) $(LIBS) -I Poole -I Libraries
 
 # Discovery compilation
 discovery: $(FRAME_O) $(DIRFUNC_O) $(MD5FUNC_O) Discovery/Discovery.c Discovery/PooleList.c Discovery/config.c

@@ -65,17 +65,30 @@ typedef struct SongNode {
     struct SongNode* next;
 } SongNode;
 
-void freeMemory();
-void printInfo(Bowman* bowmaneta);
+void printBarraProgres(FileInfo *fileInfo);
+void printAllSongs();
+void addSong(FileInfo *fileInfo);
+void removeAllSongs();
+int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo);
 void connectDiscovery(char *tokens[]);
-void download(char *songsOrPlaylist,char *commandInput);
+void processSongsResponse(Frame *frame);
+void processPlaylistsResponse(Frame *frame);
+int writeBinaryFile(Frame incoming_frame, FileInfo *downloadInfo);
+int receiveFileData(FileInfo *downloadInfo);
+void *downloadSongs(void *arg);
+void createBinaryFile(Frame *frame, FileInfo *fileInfo);
+void processFileResponse(FileInfo *fileInfo);
+void messageQueue(Frame *frame, int mq_id, int id_bustia);
+void *socketListener(void *arg);
+int connectToPoole(char *tokens[]);
+int connectBowman(char *tokens[]);
 void listSongs();
 void listPlaylists();
-void checkDownload(int *connectedOrNot);
-void clearDownload(int *connectedOrNot);
-int controleCommands(char whichCommand[50],int *connectedOrNot);
-void kctrlc();
+void download(char *commandInput, char *songsOrPlaylist);
+void logoutDiscovery();
+void freeMemory();
 void logout(int haTancatSocketPoole);
-int connectBowman(char *tokens[]);
+void kctrlc();
+int controleCommands(char *whichCommand, int *connectedOrNot);
 
 #endif

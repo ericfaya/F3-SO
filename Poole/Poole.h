@@ -25,6 +25,7 @@
 #include "frame.h"
 #include "md5functions.h"
 #include "dirfunctions.h"
+#include "semaphore_v2.h"
 
 #define printF(x) write(1, x, strlen(x))
 
@@ -38,8 +39,9 @@ typedef struct
     int portPoole;
 } Poole;
 
-typedef struct {
-    int socket; // Socket del cliente Bowman
+typedef struct ThreadArgs {
+    int socket;
+    int fd_write;  // Añadir este campo para el extremo de escritura del pipe
 } ThreadArgs;
 
 typedef struct {
@@ -55,11 +57,19 @@ typedef struct ClientNode {
     struct ClientNode* next;
 } ClientNode;
 
-int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrNot*/, Frame *incoming_frame);
-void enviarAcknowledge(int newsock,ssize_t bytes_read/*,int errorSocketOrNot*/);
-void printaAcknowledge(char buffer[256], Frame *frame) ; //Nomes es per debugar
-void freeAndClose(/*Frame *poole_frame,*/Poole *poolete,int numUsuaris);
-void waitSocketBowman(int sockfd_bowman);
-void connectToBowman(Poole *poolete);
+void removeAllClients();
+void kctrlc();
+void addClient(int sockfd);
+void sendSongListResponse(int socket);
+void sendPlayListResponse(int socket);
+void *sendFileData(void *arg);
+void enviarAcknowledge(int newsock, ssize_t bytes_read);
+FileTransferInfo *initializeFileTransferInfo(const char *filePath, const char *songName, int socket, int id, const char *header);
+int downloadSong(int socket, char *path_found, char *song_name, const char *header);
+int handleBowmanConnection(int *newsock, ssize_t bytes_read, Frame *incoming_frame, int fd_write);
+void *clientHandler(void *args);
+void connectToBowman(Poole *poolete, int fd_write);
+void procesoMonolit(int read_fd);
+
 
 #endif

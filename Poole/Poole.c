@@ -9,6 +9,7 @@ Frame incoming_frame;
 pthread_t thread_id;
 int downloadFinshed=0;
 size_t playlistFinshed=0;
+semaphore sem;
 
 
 pthread_mutex_t clientrada_sockets_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex per larray
@@ -282,7 +283,7 @@ int downloadSong(int socket,char *path_found,char *song_name,const char *header)
     return 0;
 }
 
-int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrNot*/, Frame *incoming_frame) {
+int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrNot*/, Frame *incoming_frame, int fd_write) {
   
     if (strcmp(incoming_frame->header, "NEW_BOWMAN") == 0) { 
         char *buffer;
@@ -359,7 +360,7 @@ int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrN
         
        // return downloadSong(*newsock,incoming_frame);
     }
-    
+   /* 
     else if (strcmp(incoming_frame->header, "CHECK_OK") == 0 || strcmp(incoming_frame->header, "CHECK_KO]") == 0)// NNNNNNNNNNNNNNNNNNNNNNEEEEEEEEEEEEEEEEEEEEEEEEWWWWWWWWWWWWWWWWWWWWWWW
     {
         //TODO,enviar un ack per que bowman sapiga que ha acabat?
@@ -378,6 +379,24 @@ int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrN
             send(*newsock, frame_buffer, FRAME_SIZE, 0); //aquest l'envia bé
         }
         
+    }*/
+    else if (strcmp(incoming_frame->header, "CHECK_OK") == 0) {
+    
+        print_frame3(incoming_frame);
+        char *song_name = incoming_frame->data; 
+
+        char update_message[100];
+        snprintf(update_message, sizeof(update_message), "Descargada: %s\n", song_name);
+        ssize_t bytes_written = write(fd_write, update_message, strlen(update_message)); 
+        if (bytes_written < 0) {
+            perror("Error al escribir en el pipe");
+        } else {
+            printf("Escrito en el pipe: %s\n", update_message);
+        }
+
+    
+    } else if (strcmp(incoming_frame->header, "CHECK_KO") == 0) {
+        
     }
     else if (strcmp(incoming_frame->header, "EXIT") == 0)
     {
@@ -392,6 +411,7 @@ int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrN
 void *clientHandler(void *args) {
     ThreadArgs *threadArgs = (ThreadArgs *)args;
     int clientSocket = threadArgs->socket;
+    int fd_write = threadArgs->fd_write;
     free(threadArgs);
     while (tocaTancar==1) {
        // Frame incoming_frame;
@@ -403,7 +423,7 @@ void *clientHandler(void *args) {
             break;        
         }
         else{
-            int exitOrNot = handleBowmanConnection(&clientSocket,bytes_read/*, errorSocketOrNot*/, &incoming_frame);
+            int exitOrNot = handleBowmanConnection(&clientSocket,bytes_read/*, errorSocketOrNot*/, &incoming_frame, fd_write);
             if (exitOrNot == -1) {
                 free(incoming_frame.header);
                 free(incoming_frame.data);
@@ -423,7 +443,7 @@ void *clientHandler(void *args) {
     return NULL;
     //pthread_exit(NULL);
 }
-void connectToBowman(Poole *poolete) {
+void connectToBowman(Poole *poolete, int fd_write) {
     uint16_t poole_port = poolete[0].portPoole;
     // Verifica que el puerto sea válido.
     if (poole_port < 1) {
@@ -469,6 +489,7 @@ void connectToBowman(Poole *poolete) {
             return;
         }
         args->socket = newsock;
+        args->fd_write = fd_write;
  
         //crear thread per gestionar connexio
         if (pthread_create(&thread_id, NULL, clientHandler, (void *)args) != 0) {
@@ -482,9 +503,35 @@ void connectToBowman(Poole *poolete) {
     close(sockfd_poole_server);
 }
 
+void procesoMonolit(int read_fd) {
+    int file_fd = open("stats.txt", O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if (file_fd < 0) {
+        perror("Error opening file");
+        exit(EXIT_FAILURE);
+    }
+
+    char buffer[100];
+    ssize_t num_read;
+    while ((num_read = read(read_fd, buffer, sizeof(buffer) - 1)) > 0) {
+        buffer[num_read] = '\0'; 
+      //  printf("rebut del pipe: %s\n", buffer);
+
+        SEM_wait(&sem); 
+        ssize_t bytes_written = write(file_fd, buffer, num_read);
+        if (bytes_written < 0) {
+            perror("Error writing to file");
+        } else {
+           // printf("escrit en stats.txt: %s\n", buffer);
+        }
+        SEM_signal(&sem); 
+    }
+
+    close(file_fd);
+}
+
 int main(int argc, char *argv[]){
     signal(SIGINT, kctrlc);
-    //signal(SIGKILL, kctrlc);
+    signal(SIGKILL, kctrlc);
 
     if (argc != 2){
         printF("ERROR: Incorrect number of argumentradas\n");
@@ -495,59 +542,97 @@ int main(int argc, char *argv[]){
     if (poolete == NULL){
         return -2;
     }
-    char *userName2 = poolete[0].fullName;
-    char *ipPoole = poolete[0].ipPoole;
-    uint16_t portPoole = poolete[0].portPoole;
-    char data2[FRAME_SIZE - 3 - strlen("NEW_POOLE")]; // -3 por 'type' y 'header_length'.
-            memset(data2, 0, FRAME_SIZE - 3 - strlen("NEW_POOLE")); //INITIALIZE
 
-    snprintf(data2, sizeof(data2), "%s&%s&%u", userName2, ipPoole, portPoole);
-    char frame_buffer[FRAME_SIZE] ;
-    memset(frame_buffer, 0, FRAME_SIZE); //INITIALIZE
+    //creem Pipe per comunicacio amb monolit
+    int fd[2];
+    if (pipe(fd) == -1) {
+        perror("ERROR: Pipe Failed");
+        exit(EXIT_FAILURE);
+    }
 
-    fillFrame(frame_buffer,0x01,"NEW_POOLE",data2);
-    
-    struct sockaddr_in server_addr;    //sockaddr_in: struct defineix l’estructura que permet configurar diversos paràmetres del socket com IP, port
-    memset(&server_addr, 0, sizeof(server_addr));//Inicialitza,fica 0s a l'estructura
-    server_addr.sin_family = AF_INET;//tipus de familia de socket es tracta
-    server_addr.sin_port = htons(poolete[0].portDiscovery);//(Host To Network Short) Converteix port a big endian
-    if (inet_pton(AF_INET, poolete[0].ipDiscovery, &server_addr.sin_addr) < 0) { //Converteix representradaació en text de la ip a l’equivalentrada binari (IPv4)
-        perror("Invalid address/ Address not supported");
-        exit(EXIT_FAILURE); 
-        //fer free de memoria dinamica
-    }
-    int sockfd =0;
-    sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sockfd < 0) {
-        perror("Cannot create socket");
+    //creem subprocés monolit
+    pid_t pid = fork();
+    if (pid < 0) {
+        perror("ERROR: Fork Failed");
         exit(EXIT_FAILURE);
-        //fer free de memoria dinamica
     }
-    if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Connection Failed");
-        exit(EXIT_FAILURE);
-        //fer free de memoria dinamica
-        close(sockfd); //Fas close per si acas
+
+    key_t key = IPC_PRIVATE; // Use IPC_PRIVATE to generate a unique key
+    if (key == -1) {
+        perror("Error generating key");
+        //exit(EXIT_FAILURE);
     }
-    ssize_t bytes_sent = send(sockfd, frame_buffer, FRAME_SIZE, 0);
-    if (bytes_sent < 0) {
-        perror("Error sending data");
-    } else {
-        char info[256];
-        //Frame frameAcknoledge;
-        read(sockfd, info, 256);
-        printaAcknowledge(info,&incoming_frame);
-        free(incoming_frame.header);
-        free(incoming_frame.data);
+
+    SEM_constructor_with_name(&sem, key+2);
+
+    SEM_init(&sem, 1);
+
+    if (pid > 0) {  // Proceso Padre (Poole)
+        close(fd[0]);
+        char *userName2 = poolete[0].fullName;
+        char *ipPoole = poolete[0].ipPoole;
+        uint16_t portPoole = poolete[0].portPoole;
+        char data2[FRAME_SIZE - 3 - strlen("NEW_POOLE")]; // -3 por 'type' y 'header_length'.
+                memset(data2, 0, FRAME_SIZE - 3 - strlen("NEW_POOLE")); //INITIALIZE
+
+        snprintf(data2, sizeof(data2), "%s&%s&%u", userName2, ipPoole, portPoole);
+        char frame_buffer[FRAME_SIZE] ;
+        memset(frame_buffer, 0, FRAME_SIZE); //INITIALIZE
+
+        fillFrame(frame_buffer,0x01,"NEW_POOLE",data2);
         
-        close(sockfd);
-        char *buffer;
-        asprintf(&buffer,"\nReading configuration file\nConnecting %s Server to the system..\nConnected to HAL 9000 System, ready to listen to Bowmans petitions\n\nWaiting for connections...\n\n", userName2);  
-        write(STDOUT_FILENO, buffer, strlen(buffer));   
-        free(buffer);
-        connectToBowman(poolete);
-        //freeAndClose(/*poole_frame,*/poolete,numUsuaris);
+        struct sockaddr_in server_addr;    //sockaddr_in: struct defineix l’estructura que permet configurar diversos paràmetres del socket com IP, port
+        memset(&server_addr, 0, sizeof(server_addr));//Inicialitza,fica 0s a l'estructura
+        server_addr.sin_family = AF_INET;//tipus de familia de socket es tracta
+        server_addr.sin_port = htons(poolete[0].portDiscovery);//(Host To Network Short) Converteix port a big endian
+        if (inet_pton(AF_INET, poolete[0].ipDiscovery, &server_addr.sin_addr) < 0) { //Converteix representradaació en text de la ip a l’equivalentrada binari (IPv4)
+            perror("Invalid address/ Address not supported");
+            exit(EXIT_FAILURE); 
+            //fer free de memoria dinamica
+        }
+        int sockfd =0;
+        sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        if (sockfd < 0) {
+            perror("Cannot create socket");
+            exit(EXIT_FAILURE);
+            //fer free de memoria dinamica
+        }
+        if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+            perror("Connection Failed");
+            exit(EXIT_FAILURE);
+            //fer free de memoria dinamica
+            close(sockfd); //Fas close per si acas
+        }
+        ssize_t bytes_sent = send(sockfd, frame_buffer, FRAME_SIZE, 0);
+        if (bytes_sent < 0) {
+            perror("Error sending data");
+        } else {
+            printf("Sent %zd bytes\n", bytes_sent);
+            char info[256];
+            Frame frameAcknoledge;
+            read(sockfd, info, 256);
+            printaAcknowledge(info,&frameAcknoledge);
+            
+            close(sockfd);
+            char *buffer;
+            asprintf(&buffer,"\nReading configuration file\nConnecting %s Server to the system..\nConnected to HAL 9000 System, ready to listen to Bowmans petitions\n\nWaiting for connections...\n\n", userName2);  
+            write(STDOUT_FILENO, buffer, strlen(buffer));   
+            free(buffer);
+            connectToBowman(poolete, fd[1]);
+
+            
+            //freeAndClose(/poole_frame,/poolete,numUsuaris);
+        }
+        close(fd[1]);
+        wait(NULL);
     }
-   
+    else{
+        close(fd[1]);
+        procesoMonolit(fd[0]);
+        close(fd[0]);
+        exit(0);
+    }
+
+    SEM_destructor(&sem);
     return 0;  
 }

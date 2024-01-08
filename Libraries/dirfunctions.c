@@ -10,14 +10,15 @@ char* my_strdup(const char *s) {
     strcpy(dup, s);
     return dup;
 }
-void findSongsInList(const char *directory, PathList *resultList) {
+int findSongsInList(const char *directory, PathList *resultList) {
     DIR *dir;
     struct dirent *entry;
+    int directoryFound = 0; 
 
     dir = opendir(directory);
     if (dir == NULL) {
-        perror("No se pudo abrir el directorio");
-        return;
+        perror("No se pudo abrir el directorio en la funcion de las download playlists");
+        return 0;
     }
 
     while ((entry = readdir(dir)) != NULL) {
@@ -30,7 +31,7 @@ void findSongsInList(const char *directory, PathList *resultList) {
         if (path == NULL) {
             perror("Error allocating memory for path");
             closedir(dir);
-            return;
+            return 0;
         }
 
         snprintf(path, path_length, "%s/%s", directory, entry->d_name);
@@ -38,18 +39,26 @@ void findSongsInList(const char *directory, PathList *resultList) {
         stat(path, &path_stat);
         
         if (S_ISDIR(path_stat.st_mode)) {
-            // Omitir directorios, solo estamos interesados en archivos
-            continue;
+            directoryFound = 1;
+            // Omitir ARXIVOS , solo estamos interesados en archivos
+            //continue;
         } else {
+             directoryFound = 1;
             char *dot = strstr(entry->d_name, ".mp3");
             if (dot && strcmp(dot, ".mp3") == 0) {
 
                 addToPathList(resultList, path,entry->d_name);
+                
+printf("Canción encontrada: %s\n", entry->d_name);
+    printf("Ruta completa: %s\n", path);
+    printf("------------------------\n");
             }
         }
         free(path);
     }
     closedir(dir);
+    return directoryFound;
+
 }
 //Funcio recursiva per recorre cansons en
 char* findSongInDirectory(const char *directory, const char *song_name) {

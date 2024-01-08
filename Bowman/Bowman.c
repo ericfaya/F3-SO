@@ -551,6 +551,10 @@ void *socketListener(void *arg) {
             responseDone = 2;
 
         }
+        else if (strcmp(frame->header, "UNKNOWN") == 0) {
+            printf("No existeix el directori o canço,prova un altre\n");
+        }   
+        
         if(responseDone==0 || responseDone==2)
             freeFrame(frame);
 

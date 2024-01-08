@@ -334,10 +334,13 @@ int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrN
         //printf("'%s' song fucking name ",song_name);
         path_found = findSongInDirectory("Files/floyd", song_name);
         //printf("'%s' path fucking found ",path_found);
-        downloadSong(*newsock,path_found,song_name,"DOWNLOAD_SONG");
-        
-     
-         
+        if(path_found)
+            downloadSong(*newsock,path_found,song_name,"DOWNLOAD_SONG");
+        else{
+            char frame_buffer[FRAME_SIZE] = {0};
+            fillFrame(frame_buffer,0x07,"UNKNOWN"," ");
+            send(*newsock, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
+        }     
     }
     else if (strcmp(incoming_frame->header, "DOWNLOAD_LIST") == 0) //TODO    A total of 2 songs will be sent. AQUEST PRINTF,SA DE CONTAR EL NUMERO DE CANSONS O ALGO AIXI K SENVIEN
     {
@@ -351,11 +354,17 @@ int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrN
            // PathList resultList;
            // initializePathList(&resultList, 1);
 
-            findSongsInList(full_path, resultList);
-            for (size_t i = 0; i < resultList->size; ++i) {
-                downloadSong(*newsock,resultList->paths[i],resultList->songs[i],"DOWNLOAD_LIST");
+            int found = findSongsInList(full_path, resultList);
+            if(found){
+                for (size_t i = 0; i < resultList->size; ++i) {
+                    downloadSong(*newsock,resultList->paths[i],resultList->songs[i],"DOWNLOAD_LIST");
+                }
             }
-          
+            else{
+                char frame_buffer[FRAME_SIZE] = {0};
+                fillFrame(frame_buffer,0x07,"UNKNOWN"," ");
+                send(*newsock, frame_buffer, FRAME_SIZE, 0);//Bowman send poole
+            }
             free(full_path);
            
         }

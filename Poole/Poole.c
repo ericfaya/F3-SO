@@ -429,6 +429,8 @@ int handleBowmanConnection(int *newsock,ssize_t bytes_read/*, int errorSocketOrN
             fillFrame(frame_buffer, 0x08, "FINISH", "");
             send(*newsock, frame_buffer, FRAME_SIZE, 0); //aquest l'envia bé   
             freePathList(resultList);
+            initializePathList(resultList, 1);
+
         }
 
     

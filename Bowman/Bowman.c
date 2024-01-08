@@ -68,7 +68,7 @@ void addSong( FileInfo *fileInfo) {
     //newNode->fileNameDownloaded = strdup(fileName);  // Allocate memory for the string
     newNode->next = NULL;
 
-    //pthread_mutex_lock(&songentrada_sockets_mutex);
+    pthread_mutex_lock(&songentrada_sockets_mutex);
 
     if (head == NULL) {
         head = newNode;
@@ -80,11 +80,11 @@ void addSong( FileInfo *fileInfo) {
         current->next = newNode;
     }
 
-    //pthread_mutex_unlock(&songentrada_sockets_mutex);
+    pthread_mutex_unlock(&songentrada_sockets_mutex);
 }
 
 void removeAllSongs() {
-    //pthread_mutex_lock(&songentrada_sockets_mutex);
+    pthread_mutex_lock(&songentrada_sockets_mutex);
 
     SongNode* current = head;
     SongNode* next;
@@ -98,7 +98,7 @@ void removeAllSongs() {
 
     head = NULL;
 
-    //pthread_mutex_unlock(&songentrada_sockets_mutex);
+    pthread_mutex_unlock(&songentrada_sockets_mutex);
 }
 
 int fillDownloadInfo(const Frame *file_info_frame, FileInfo *downloadInfo) {
@@ -397,7 +397,11 @@ void processFileResponse(FileInfo *fileInfo) {
 }
 void messageQueue(Frame *frame,int mq_id,int id_bustia) {
     MessageQueue msg;
-    msg.frame = *frame;
+    //msg.frame = *frame;
+        memset(&msg, 0, sizeof(MessageQueue));  // Inicializa toda la estructura a ceros
+
+    memcpy(&msg.frame, frame, sizeof(Frame)); // Copia los datos de frame a msg.frame
+
     msg.mtype = id_bustia;
 
     if( tocaTancar == 1){
@@ -411,6 +415,7 @@ void messageQueue(Frame *frame,int mq_id,int id_bustia) {
         //pthread_mutex_unlock(&songentrada_sockets_mutex);
 
     }
+    
 }
 
 Frame* initializeFrame() {
@@ -472,9 +477,9 @@ void *socketListener(void *arg) {
             printAllSongs();
  
             jaHoHaFet=1;
-            if(isDownloading==0){
-                responseDone = 0;
-            }
+            //if(isDownloading==0){
+                //responseDone = 0;
+            //}
 
         }
 
@@ -482,9 +487,9 @@ void *socketListener(void *arg) {
             printAllSongs();
             removeAllSongs();
             jaHoHaFet = 1;
-            if(isDownloading==0){
+        //    if(isDownloading==0){
                 responseDone = 0;
-            }
+          //  }
         }
       
         ssize_t  bytes_read=receive_frame(sockfd_poole, frame) ;//receive_frame(sockfd_poole, &frame) < 0
@@ -493,20 +498,27 @@ void *socketListener(void *arg) {
             logout(1);
             break;
         } 
-        
+        if(isDownloading==0){
+            pthread_t self_thread = pthread_self();
+            printf("ID del hilo de escucha: %lu\n", (unsigned long)self_thread);
+        }
         if (strcmp(frame->header, "SONGS_RESPONSE") == 0) {
+            printf("La variable global es: %d\n",            isDownloading);
             processSongsResponse(frame);
-            if(isDownloading==0){
+//if(isDownloading==0){
                 responseDone = 0;
-            }
+  //          }
         } else if (strcmp(frame->header, "PLAYLISTS_RESPONSE") == 0) {
+                        printf("La variable global es: %d\n",            isDownloading);
+
             processPlaylistsResponse(frame);
-            if(isDownloading==0){
+    //        if(isDownloading==1){
                 responseDone = 0;
-            }
+      //      }
 
         } else if (strcmp(frame->header, "NEW_FILE") == 0) {
             pthread_mutex_lock(&songentrada_sockets_mutex);
+            isDownloading=1;
 
             incrementBustiaToCheckDownload++;
             pthread_mutex_unlock(&songentrada_sockets_mutex);
@@ -539,7 +551,8 @@ void *socketListener(void *arg) {
             responseDone = 2;
 
         }
-        freeFrame(frame);
+        if(responseDone==0 || responseDone==2)
+            freeFrame(frame);
 
         //free(frame.header);
         //free(frame.data);
@@ -547,13 +560,13 @@ void *socketListener(void *arg) {
     //printf("Hola5");
 
     if(responseDone==2){
-        free(fileInfo->fileName);
+       // free(fileInfo->fileName);
         //printf("Hola3");
 
-        free(fileInfo->md5sum);
+        //free(fileInfo->md5sum);
         //printf("Hola4   ");
 
-        free(fileInfo->songPath); 
+        //free(fileInfo->songPath); 
     }       
     //printf("Hola6");
 
@@ -863,12 +876,15 @@ int main(int argc, char *argv[]) {
             threadArgs->newCommand = newCommand;
             printF("NEEEEEEEEEEEEEEEEEEEEEEEEEEEEW THREAD SOCKET LISTENER\n\n");
             pthread_t listenerThread;
+
             if (pthread_create(&listenerThread, NULL, socketListener, threadArgs) != 0) {
                 perror("Error al crear el hilo de escucha");
                 exit(EXIT_FAILURE);
 
                 //close(sockfd_poole);
             }
+                            printf("ID del hilo de escucha cuan ja la fet: %lu\n", (unsigned long)listenerThread);
+
         }
 
         free(command); 
